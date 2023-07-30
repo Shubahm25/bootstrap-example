@@ -1,47 +1,184 @@
 <!DOCTYPE html>
-<html data-bs-theme="light" lang="en">
+<html>
 
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <title>index</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
+  <link rel="stylesheet" href="background_styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <title>Custom Checkbox</title>
+  <style>
+    * {
+    box-sizing: border-box;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-container label {
+    cursor: pointer;
+    display: flex;
+}
+
+.checkbox-container input[type='checkbox'] {
+    cursor: pointer;
+    opacity: 0;
+    position: absolute;
+}
+
+label{
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.checkbox-container .uncheck::before {
+    content: '';
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    margin-right: .5em;
+    border: 1px solid #5B6062;
+}
+
+
+.checkbox-container .check::before  {
+    content: '';
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    margin-right: .5em;
+    border: 1px solid #9E1A30 !important ;
+}
+
+
+
+
+
+.checkbox-container input[type='checkbox']:checked + label::before {
+    content: '\f00c';
+    background-color: #00588B;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family:fontawesome;
+    border: 1px solid #5B6062 !important;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Background Styles Only */
+
+@import url('https://fonts.googleapis.com/css?family=Raleway');
+
+* {
+    font-family: Raleway;
+}
+
+.fa-check{
+  font-size: 24px;
+}
+
+html {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #DFDFDF;
+}
+
+.side-links {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+}
+
+.side-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  margin-bottom: 10px;
+  color: white;
+  width: 180px;
+  padding: 10px 0;
+  border-radius: 10px;
+}
+
+.side-link-youtube {
+  background-color: red;
+}
+
+.side-link-twitter {
+  background-color: #1DA1F2;
+}
+
+.side-link-github {
+  background-color: #6e5494;
+}
+
+.side-link-text {
+  margin-left: 10px;
+  font-size: 18px;
+}
+
+.side-link-icon {
+  color: white;
+  font-size: 30px;
+}
+  </style>
 </head>
 
 <body>
-    <div style="width: 1064px;margin: auto;padding: 0;/*height: 100px;*//*background: yellow;*/border: 2px solid red ;">
-        <div style="height: 100px;background: yellow;position: relative;/*top: 10px;*/align-items: center;display: flex;">
-            <div id="about-remittance" class="about-remittance" style="/*width: 225px;*//*height: 26px;*//*margin-left: 15px;*/position: relative;left: 15px;"><span style="font-weight: 400;line-height: 26px;font-size: 28px;width: 225px;height: 26px;">hello test </span></div>
-        </div>
-        <div style="width: 1033px;height: 818px;border-style: solid;border-top-width: 3px;border-top-color: black;position: relative;left: 15px;">
-            <div style="width:736px;height:30px;"><span style="font-size:24px;--bs-body-font-weight:400;">hello test <span class="circle-icon" style="width:23px;height:25px;font-weight:400;font-size:25px;color:#424242;line-height:28.75px;"><i class="fa fa-info-circle" id="circle-icon"></i></span></span></div>
-            <div style="width: 1002px;height: 52px;position: relative;top: 10px;"><span style="font-size: 16px;line-height: 26px;font-weight: 400;">hello test&nbsp;</span></div>
-            <div style="height: 712px;border-style: solid;border-color: black;position: relative;top: 10px;">
-                <div id="body-text" class="body-text" style="width: 736px;height: 30px;/*font-size: 24px;*/"><span id="body-content" class="body-content" style="font-size: 24px;font-weight: 400;line-height: 30px;color: #424242;">What would you like to do today?</span></div>
-                <div class="cards" style="display: flex;position: relative;top: 10px;">
-                    <div class="card text-center" style="width: 250px;height: 117px;background-color: #F7F7F7;">
-                        <div class="card-body">
-                            <div style="position: relative;top: 10px;">
-                                <div><span style="font-weight: 400;font-size: 24px;line-height: 24px;color: #000000;"><i class="fa fa-plus-square-o"></i></span></div>
-                                <div><span>test</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card text-center" style="width: 250px;height: 117px;background-color: #F7F7F7;position: relative;left: 10px;">
-                        <div class="card-body">
-                            <div style="position: relative;top: 10px;">
-                                <div><span style="font-weight: 400;font-size: 24px;line-height: 24px;color: #000000;"><i class="fa fa-file-text-o"></i></span></div>
-                                <div><span>test1</span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <script src="assets/bootstrap/js/bootstrap.min.js"></script>
+  <div class="checkbox-container">
+    <input type="checkbox" id="cb1" disabled checked>
+    <label for="cb1" class="uncheck">Checkbox 1</label>
+  </div>
+  <br>
+  <div class="checkbox-container">
+    <input type="checkbox" id="cb2" disabled>
+    <label for="cb2" class="uncheck"><span style="font-size: 16px;">Checkbox 2</span></label>
+  </div>
+  <br>
+  <div class="checkbox-container">
+    <input type="checkbox" id="cb3">
+    <label for="cb3" class="check">Yes, the information is correct</label>
+  </div>
+  <br>
+  <div class="checkbox-container">
+    <input type="checkbox" id="cb4">
+    <label for="cb4">Checkbox 4</label>
+  </div>
+
+
+  <!-- Side Links Only -->
+  <div class="side-links">
+    <a href="https://youtu.be/YyLzwR-iXtI" target="_blank" class="side-link side-link-youtube">
+      <i class="fab fa-youtube-square side-link-icon"></i>
+      <span class="side-link-text">View Tutorial</span>
+    </a>
+    <a href="https://github.com/WebDevSimplified" target="_blank" class="side-link side-link-github side-link-icon">
+      <i class="fab fa-github-square"></i>
+      <span class="side-link-text">View GitHub</span>
+    </a>
+    <a href="https://twitter.com/DevSimplified" target="_blank" class="side-link side-link-twitter">
+      <i class="fab fa-twitter-square side-link-icon"></i>
+      <span class="side-link-text">View Twitter</span>
+    </a>
+  </div>
 </body>
 
 </html>
