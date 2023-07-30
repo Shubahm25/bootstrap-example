@@ -26,13 +26,11 @@
     position: absolute;
 }
 
-label{
+label::before{
   font-size: 16px;
-  line-height: 24px;
-  font-weight: 700;
 }
 
-.checkbox-container .uncheck::before {
+.checkbox-container label::before {
     content: '';
     width: 24px;
     height: 24px;
@@ -41,15 +39,6 @@ label{
     border: 1px solid #5B6062;
 }
 
-
-.checkbox-container .check::before  {
-    content: '';
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    margin-right: .5em;
-    border: 1px solid #9E1A30 !important ;
-}
 
 
 
@@ -62,8 +51,19 @@ label{
     justify-content: center;
     align-items: center;
     color: white;
-    font-family:fontawesome;
-    border: 1px solid #5B6062 !important;
+  font-family:fontawesome;
+  border: 1px solid #5B6062 !important;
+}
+
+
+
+.checkbox-container .checkbox-error::before  {
+    content: '';
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    margin-right: .5em;
+    border: 1px solid #9E1A30 !important ;
 }
 
 
@@ -87,9 +87,7 @@ label{
     font-family: Raleway;
 }
 
-.fa-check{
-  font-size: 24px;
-}
+
 
 html {
     width: 100%;
@@ -116,6 +114,12 @@ html {
   width: 180px;
   padding: 10px 0;
   border-radius: 10px;
+}
+.checkbox-container label{
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  color: #202223;
 }
 
 .side-link-youtube {
@@ -145,22 +149,22 @@ html {
 <body>
   <div class="checkbox-container">
     <input type="checkbox" id="cb1" disabled checked>
-    <label for="cb1" class="uncheck">Checkbox 1</label>
+    <label for="cb1">Checkbox 1</label>
   </div>
   <br>
   <div class="checkbox-container">
     <input type="checkbox" id="cb2" disabled>
-    <label for="cb2" class="uncheck"><span style="font-size: 16px;">Checkbox 2</span></label>
+    <label for="cb2 "><span style="font-size: 16px;">Checkbox 2</span></label>
   </div>
   <br>
   <div class="checkbox-container">
     <input type="checkbox" id="cb3">
-    <label for="cb3" class="check">Yes, the information is correct</label>
+    <label for="cb3">Yes, the information is correct</label>
   </div>
   <br>
   <div class="checkbox-container">
     <input type="checkbox" id="cb4">
-    <label for="cb4">Checkbox 4</label>
+    <label for="cb4" class="">Checkbox 4</label>
   </div>
 
 
