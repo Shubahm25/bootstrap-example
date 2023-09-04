@@ -1,22 +1,22 @@
-Private Function IsAFederalGovernmentId(ByVal SponsorId As String, ByVal SponsorList As String) As Boolean
+Private Function testMethod(ByVal testID As String, ByVal testList As String) As Boolean
   On Error GoTo ErrorHandler
 
   Dim oRegEx As New VBScript_RegExp_55.RegExp
-  Dim oWebCommon As Object
+  Dim common As Object
   
   oRegEx.IgnoreCase = True
-  oRegEx.Pattern = "^(.+,)*" & SponsorId & "(,.+)*$"
+  oRegEx.Pattern = "^(.+,)*" & testID & "(,.+)*$"
   
-  IsAFederalGovernmentId = oRegEx.Test(SponsorList)
+  IsAFederalGovernmentId = oRegEx.Test(testList)
   
   Exit Function
   
 ErrorHandler:
   
-  If oWebCommon Is Nothing Then
-    Set oWebCommon = CreateObject("CLIWebServices.CLIWebCommon")
+  If common Is Nothing Then
+    Set common = CreateObject("services.common")
     oWebCommon.LogError Err.Number, Err.Source & vbCrLf & "in " & g_AppName & "." & g_ModuleName, Err.Description, g_ModuleName, True
-    Set oWebCommon = Nothing
+    Set common = Nothing
   End If
 
 End Function
