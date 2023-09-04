@@ -1,0 +1,22 @@
+Private Function IsAFederalGovernmentId(ByVal SponsorId As String, ByVal SponsorList As String) As Boolean
+  On Error GoTo ErrorHandler
+
+  Dim oRegEx As New VBScript_RegExp_55.RegExp
+  Dim oWebCommon As Object
+  
+  oRegEx.IgnoreCase = True
+  oRegEx.Pattern = "^(.+,)*" & SponsorId & "(,.+)*$"
+  
+  IsAFederalGovernmentId = oRegEx.Test(SponsorList)
+  
+  Exit Function
+  
+ErrorHandler:
+  
+  If oWebCommon Is Nothing Then
+    Set oWebCommon = CreateObject("CLIWebServices.CLIWebCommon")
+    oWebCommon.LogError Err.Number, Err.Source & vbCrLf & "in " & g_AppName & "." & g_ModuleName, Err.Description, g_ModuleName, True
+    Set oWebCommon = Nothing
+  End If
+
+End Function
