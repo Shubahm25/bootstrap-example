@@ -1,22 +1,342 @@
-Private Function testMethod(ByVal testID As String, ByVal testList As String) As Boolean
-  On Error GoTo ErrorHandler
+Public Function sendMail(ByVal sRequestCorrelationId As String, _
+                                     ByVal objRequest As Object, _
+                                     ByRef objresult As Object) As Long
+Attribute sendMail.VB_MemberFlags = "40"
+On Error GoTo ErrorHandler
+    Dim sAuthConnectionString As String
+    Dim objCCSSession As Object
+    Dim rc As Long
+    'Dim strSessionId As String
+    Dim strEncryptedID As String
+    Dim xmlReturn As String
+    Dim strEmailIID As String
+    Dim strAccessID As String
+    Dim objDatabase As Object
+    Const FUNCNAME = "sendMail"
+    Dim strSQL As String
+    Dim common As Object
+    Dim strLanguage As String
+    
+    Dim strInputAddr1 As String
+    Dim strInputAddr2 As String
+    Dim strInputAddr3 As String
+    Dim strInputAddr4 As String
+    Dim strInputAddr5 As String
+    Dim strInputAddr6 As String
+    
+    Dim strCustomerName As String
+    Dim strEmailAddr As String
+    
+    Dim strAccessIDType
+    Dim strPassword
+    Dim strPasswordStaleTime
+    Dim strRequestingApp
+    Dim strFirstName
+    Dim strBrand
+    Dim strMailingType
+    Dim strGroupingIdentifier
+    Dim arrAddressLines(0 To 5)
+    Dim strMailingDeliveryCode
+    Dim strDateToMail
+    Dim strSurName
+    Dim strSalutation As String
+    Dim strRegardingLine As String
+    Dim strIDCardName As String
+   
+    Dim strCity
+    Dim strProv
+    Dim strCountry
+    Dim strPostalCode
 
-  Dim oRegEx As New VBScript_RegExp_55.RegExp
-  Dim common As Object
-  
-  oRegEx.IgnoreCase = True
-  oRegEx.Pattern = "^(.+,)*" & testID & "(,.+)*$"
-  
-  IsAFederalGovernmentId = oRegEx.Test(testList)
-  
-  Exit Function
-  
+    
+    Dim strDisplayName As String
+    
+    Dim NumAddrLines As Integer
+    
+    Dim blnBreakDone As Boolean
+    Dim blnEmail As Boolean
+    Dim strtemp As String
+    If GetXMLInput(objRequest, objresult, FUNCNAME & "/MailingType", strMailingType, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+    If GetXMLInput(objRequest, objresult, FUNCNAME & "/DateToMail", strDateToMail, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+    If GetXMLInput(objRequest, objresult, FUNCNAME & "/Language", strLanguage, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+    If GetXMLInput(objRequest, objresult, FUNCNAME & "/AppName", strRequestingApp, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+    strDateToMail = Format(strDateToMail, "yyyy-mm-dd")
+    Call GetXMLInput(objRequest, objresult, FUNCNAME & "/PasswordStaleTime", strPasswordStaleTime, XML_ATTRIB_OPTIONAL)
+    Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Password", strPassword, XML_ATTRIB_OPTIONAL)
+    If strPasswordStaleTime <> "" Then strPasswordStaleTime = Format(strPasswordStaleTime, "yyyy/mm/dd hh:nn:ss AMPM")
+    
+    Select Case UCase(strMailingType)
+        Case "ABC1", "ABC2", "ABC3", "ABC4", "ABC5", "ABC6"
+            blnEmail = True
+      
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/EmailAddress", strEmailAddr, XML_ATTRIB_OPTIONAL)
+         
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Email-id", strEmailIID, XML_ATTRIB_OPTIONAL)
+        'POSTAL TYPES
+        Case Else
+    
+            If GetXMLInput(objRequest, objresult, FUNCNAME & "/EmailID", strEmailIID, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+            If GetXMLInput(objRequest, objresult, FUNCNAME & "/MailingDeliveryCode", strMailingDeliveryCode, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+            If GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine1", strInputAddr1, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+            'If GetXMLInput(objRequest, objResult, FUNCNAME & "/MailingLocationCode", strMailingLocationCode, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+            If GetXMLInput(objRequest, objresult, FUNCNAME & "/Brand", strBrand, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+            If GetXMLInput(objRequest, objresult, FUNCNAME & "/FirstName", strFirstName, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+            If GetXMLInput(objRequest, objresult, FUNCNAME & "/SurName", strSurName, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/GroupingIdentifier", strGroupingIdentifier, XML_ATTRIB_OPTIONAL)
+        'OPTIONAL POSTAL XMLINPUT
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Salutation", strSalutation, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/DisplayName", strDisplayName, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AccessID", strAccessID, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AccessIDType", strAccessIDType, XML_ATTRIB_OPTIONAL)
+
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/City", strCity, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Prov", strProv, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Country", strCountry, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/PostalCode", strPostalCode, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/RegardingLine", strRegardingLine, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine2", strInputAddr2, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine3", strInputAddr3, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine4", strInputAddr4, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine5", strInputAddr5, XML_ATTRIB_OPTIONAL)
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine6", strInputAddr6, XML_ATTRIB_OPTIONAL)
+            
+    
+            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/IDCardName", strIDCardName, XML_ATTRIB_OPTIONAL)
+            
+            If Len(Trim(strPostalCode)) = 6 And UCase(Left(strCountry, 2)) = "CDE" Then
+                strPostalCode = Left(strPostalCode, 3) & " " & Mid(strPostalCode, 4)
+            End If
+    End Select
+    
+    If UCase(strMailingType) = "ABC" Or (UCase(strMailingType) = "ABC1") Then
+        arrAddressLines(0) = strInputAddr1
+        arrAddressLines(1) = strInputAddr2
+        arrAddressLines(2) = strInputAddr3
+        arrAddressLines(3) = strInputAddr4
+        arrAddressLines(4) = strInputAddr5
+        arrAddressLines(5) = strInputAddr6
+        strCustomerName = strDisplayName
+    ElseIf Not blnEmail Then
+        If Len(strDisplayName) > 30 Then
+       
+         If strBrand = "SGF" Then
+            strCustomerName = strFirstName & " " & strSurName
+            If Len(strCustomerName) > 30 Then
+                strCustomerName = Left(strFirstName, 1) & " " & Left(strSurName, 28)
+            End If
+        Else
+            strCustomerName = strSalutation & " " & strFirstName & " " & strSurName
+            If Len(strCustomerName) > 30 Then
+                strCustomerName = strFirstName & " " & strSurName
+                If Len(strCustomerName) > 30 Then
+                   strCustomerName = Left(strFirstName, 1) & " " & Left(strSurName, 28)
+                End If
+            End If
+        End If
+        Else
+            'if less than 30 chars, use the displayname from CIF
+            strCustomerName = strDisplayName
+        End If
+        
+        'Do Address
+        NumAddrLines = 0
+        
+        'There is a regarding line, add it as the first line
+        If strRegardingLine <> "" Then
+            arrAddressLines(NumAddrLines) = Left(strRegardingLine, 50)
+            NumAddrLines = NumAddrLines + 1
+        End If
+        
+        If UCase(Left(strCountry, 2)) = "OTC" Then
+            If strInputAddr1 <> "" Then
+                arrAddressLines(NumAddrLines) = strInputAddr1
+                NumAddrLines = NumAddrLines + 1
+            End If
+            If strInputAddr2 <> "" Then
+                arrAddressLines(NumAddrLines) = strInputAddr2
+                NumAddrLines = NumAddrLines + 1
+            End If
+            If strInputAddr3 <> "" Then
+                arrAddressLines(NumAddrLines) = strInputAddr3
+                NumAddrLines = NumAddrLines + 1
+            End If
+            If strInputAddr4 <> "" Then
+                arrAddressLines(NumAddrLines) = strInputAddr4
+                NumAddrLines = NumAddrLines + 1
+            End If
+        Else
+            If Len(strInputAddr1) <= 50 Then
+                arrAddressLines(NumAddrLines) = strInputAddr1
+                NumAddrLines = NumAddrLines + 1
+                If strInputAddr2 <> "" Then
+                    arrAddressLines(NumAddrLines) = BreakString(strInputAddr2, 50, blnBreakDone)
+                    NumAddrLines = NumAddrLines + 1
+                    If blnBreakDone Then
+                        arrAddressLines(NumAddrLines) = BreakString(Mid(strInputAddr2, Len(arrAddressLines(NumAddrLines - 1))), 50, blnBreakDone)
+                        NumAddrLines = NumAddrLines + 1
+                    End If
+                End If
+            ElseIf Len(strInputAddr2) > 50 Then
+            
+                strtemp = strInputAddr1 & " " & strInputAddr2
+                arrAddressLines(NumAddrLines) = BreakString(strtemp, 50, blnBreakDone)
+                strtemp = Mid(strtemp, Len(arrAddressLines(NumAddrLines)) + 1)
+                NumAddrLines = NumAddrLines + 1
+                arrAddressLines(NumAddrLines) = BreakString(strtemp, 50, blnBreakDone)
+                strtemp = Mid(strtemp, Len(arrAddressLines(NumAddrLines)))
+                NumAddrLines = NumAddrLines + 1
+                arrAddressLines(NumAddrLines) = Left(strtemp, 50)
+                NumAddrLines = NumAddrLines + 1
+            Else
+            
+                arrAddressLines(NumAddrLines) = BreakString(strInputAddr1, 50, blnBreakDone)
+                strtemp = Mid(strInputAddr1, Len(arrAddressLines(NumAddrLines)) + 1)
+                NumAddrLines = NumAddrLines + 1
+                arrAddressLines(NumAddrLines) = Left(strtemp, 50)
+                NumAddrLines = NumAddrLines + 1
+                arrAddressLines(NumAddrLines) = strInputAddr2 'Mid(strInputAddr2, 50)
+                NumAddrLines = NumAddrLines + 1
+            End If
+            strtemp = strCity & " " & strProv & "  " & strPostalCode
+                
+            If Len(strtemp) > 50 Then
+                arrAddressLines(NumAddrLines) = Left(strCity & " " & strProv, 50)
+                NumAddrLines = NumAddrLines + 1
+                arrAddressLines(NumAddrLines) = strPostalCode
+                NumAddrLines = NumAddrLines + 1
+            Else
+                arrAddressLines(NumAddrLines) = strtemp
+                NumAddrLines = NumAddrLines + 1
+            End If
+            
+            'if usa, add country to bottom
+            If UCase(Left(strCountry, 1)) = "IRE" Then
+                arrAddressLines(NumAddrLines) = "Ireland"
+                NumAddrLines = NumAddrLines + 1
+            End If
+        End If
+    End If
+    
+    'If an IDCardName was not passed in then default it to the CustomerName that was derived above.
+    If Len(strIDCardName) = 0 Then
+        strIDCardName = strCustomerName
+    End If
+    
+    
+    If sendMail = 0 Then
+    
+        If Not blnEmail Then
+        
+            If (UCase(strMailingType) = "ABC12") Then
+                strMailingType = "ABC34"
+            End If
+            
+            Dim oMailerRequest As Object
+            Set oMailerRequest = CreateObject("Mailing_Request")
+            oMailerRequest.AccsId = strAccessID
+            oMailerRequest.AccsIdTyp = strAccessIDType
+            oMailerRequest.UserPswdTxt = strPassword
+            oMailerRequest.UserPswdXpryDt = IIf(IsDate(strPasswordStaleTime), Format(strPasswordStaleTime, "yyyy-MM-dd"), "")
+            oMailerRequest.LangCd = strLanguage
+            oMailerRequest.BrnCd = strBrand
+            oMailerRequest.MailTyp = strMailingType
+            oMailerRequest.GrpId = strGroupingIdentifier
+            oMailerRequest.MailDlvryCd = strMailingDeliveryCode
+            oMailerRequest.MailDlvryDt = Format(CDate(strDateToMail), "yyyy-MM-dd")
+            oMailerRequest.EbusIntrnlId = strEmailIID
+            oMailerRequest.AccsIdCrdNm = strIDCardName
+            oMailerRequest.PersSurNm = strSurName
+            oMailerRequest.PstlCd = strPostalCode
+            
+            Dim oCustAddr As Object
+            Set oCustAddr = CreateObject("PinIdMailing_RequestAddress")
+            oCustAddr.AddreNm = strCustomerName
+            oCustAddr.AddrLine1Txt = arrAddressLines(0)
+            oCustAddr.AddrLine2Txt = arrAddressLines(1)
+            oCustAddr.AddrLine3Txt = arrAddressLines(2)
+            oCustAddr.AddrLine4Txt = arrAddressLines(3)
+            oCustAddr.AddrLine5Txt = arrAddressLines(4)
+            oCustAddr.AddrLine6Txt = arrAddressLines(5)
+            
+            Set oMailerRequest.CstAddress = oCustAddr
+            
+            Dim oSpnsrAddr As Object
+            Set oSpnsrAddr = CreateObject("PinIdMailing_RequestAddress")
+     
+                
+            Set oMailerRequest.SpnsrAddress = oSpnsrAddr
+            
+            Dim oMailer As IDAndPasswordMailer.Mailer
+            Set oMailer = New IDAndPasswordMailer.Mailer
+              
+            Dim oMailerResponse As Object
+            
+            Set oMailerResponse = oMailer.CreateMailer(oMailerRequest)
+            
+        Else
+            Set objDatabase = CreateObject("Database")
+            sAuthConnectionString = objDatabase.GetConnectionString("Authentication")
+            strSQL = "INSERT INTO SendMail (id,AccessID,AccessIDType,Password," & _
+                    "PasswordStaleTime,Lang,Brand,MailingType," & _
+                    "GroupingIdentifier,CustomerName,AddressLine1,AddressLine2,AddressLine3," & _
+                    "AddressLine4,AddressLine5,AddressLine6,EmailAddress," & _
+                    "MailingDeliveryCode,Status,DateToMail,RequestingApp,SurName,PostalCode,IDCardName) VALUES ('" & _
+                    strEmailIID & "',"
+                    
+            If strAccessID = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strAccessID & "',"
+            If strAccessIDType = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strAccessIDType & "',"
+            If strPassword = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strPassword & "',"
+            If strPasswordStaleTime = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strPasswordStaleTime & "',"
+             'do escaping
+            strCustomerName = toSQLString(strCustomerName)
+            strIDCardName = toSQLString(strIDCardName)
+            Dim i As Integer
+            For i = 0 To 5
+               arrAddressLines(i) = toSQLString(arrAddressLines(i))
+            Next
+            
+            strEmailAddr = toSQLString(strEmailAddr)
+            strSurName = toSQLString(strSurName)
+             
+            strSQL = strSQL & "'" & strLanguage & "','" & strBrand & "','" & strMailingType & "','" & _
+                    strGroupingIdentifier & "','" & strCustomerName & "','" & arrAddressLines(0) & "','" & arrAddressLines(1) & "','" & _
+                    arrAddressLines(2) & "','" & arrAddressLines(3) & "','" & arrAddressLines(4) & "','" & arrAddressLines(5) & "',"
+            If strEmailAddr = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strEmailAddr & "',"
+            strSQL = strSQL & "'" & strMailingDeliveryCode & "','I','" & strDateToMail & "','" & strRequestingApp & "'," &  "','" & strSurName & "','" & strPostalCode & "','" & strIDCardName & "')"
+                    
+            On Error Resume Next
+            rc = objDatabase.RunSQL(sAuthConnectionString, strSQL)
+            If Err.Number <> 0 Then
+                Dim tmpErrEmail(4) As Variant
+                tmpErrEmail(0) = Err.Number
+                tmpErrEmail(1) = Err.Source
+                tmpErrEmail(2) = Err.Description & " the insert statment that caused this error was: " & strSQL
+                tmpErrEmail(3) = Err.HelpFile
+                tmpErrEmail(4) = Err.HelpContext
+                On Error GoTo ErrorHandler
+                Call Err.Raise(tmpErrEmail(0), tmpErrEmail(1), tmpErrEmail(2), tmpErrEmail(3), tmpErrEmail(4))
+            End If
+            On Error GoTo ErrorHandler
+        
+        End If
+    
+    End If
+    
+    xmlReturn = "<ReturnValues><" & FUNCNAME & ">" & xmlReturn & "</" & FUNCNAME & "></ReturnValues>"
+    
+    
+    If Not objresult.LoadReturnValuesXML(xmlReturn) Then
+        Err.Raise 8, PROGID, "Could not save xml return values to the ServiceResult object, xml:" & xmlReturn
+    End If
+    
+    Exit Function
 ErrorHandler:
-  
-  If common Is Nothing Then
-    Set common = CreateObject("services.common")
-    oWebCommon.LogError Err.Number, Err.Source & vbCrLf & "in " & g_AppName & "." & g_ModuleName, Err.Description, g_ModuleName, True
-    Set common = Nothing
-  End If
+    Dim errNum
+    Dim errMsg
+    errNum = Err.Number
+    errMsg = "Error in sendMail: " & Err.Description
+    AddMessage errNum, ErrorMessage, "Unexpected error in sendMail", errMsg, objresult
+    WriteErrorLog errMsg, PROGID, severe, "Support", Err.Number
+    sendMail = Web_error
 
 End Function
