@@ -1,730 +1,147 @@
-
-
-#include "stdafx.h"
-#include "Attributes.h"
-#include "TestNumber.h"
-#include "mcc2.h"
 #include "Functions.h"
+#include "mcc2.h"
+#include <comdef.h>
+#include <wchar.h>
+#pragma hdrstop 
 
-extern void GetResourceString(short resourceID, short language, BSTR *resourceString);
+// conversion macros
+#define CONVERT_CHAR_TO_BSTR(x) _com_util::ConvertStringToBSTR(x)
+#define CONVERT_BSTR_TO_CHAR(x) _com_util::ConvertBSTRToString(x)
 
-
-STDMETHODIMP TestNumber::InterfaceSupportsErrorInfo(REFIID riid)
-{
-	static const IID* arr[] = 
-	{
-		&IID_ITestNumber,
-		&IID_ITMGBaseAttribute,
-		&IID_ITMGBase,
-	};
-
-	for (int i=0;i<sizeof(arr)/sizeof(arr[0]);i++)
-	{
-		if (ATL::InlineIsEqualGUID(*arr[i],riid))
-			return S_OK;
-	}
-	return S_FALSE;
-}
-
-
-
-
-TestNumber::TestNumber () :		
-					
-							m_pITMGBaseAttribute(NULL),
-							m_IsCheckDigitRequired(TRUE),
-							m_AllowAssetBuilder(FALSE)
-
-{
-	
-	HRESULT hr= CoCreateInstance( 
-							CLSID_TMGBaseAttribute,
-							NULL,		// outer 
-							CLSCTX_INPROC_SERVER,
-							IID_ITMGBaseAttribute,
-							(void **)&m_pITMGBaseAttribute);
-}
-
-
-							
-							
-TestNumber::~TestNumber()
+void BSTRToChar(char *destination, const BSTR source)
 {
 
-}
-
-
-STDMETHODIMP TestNumber::Validate( short * pIsCNValid)
-{
-	BSTR tempBSTR;
-	BSTR statusMessage;
-	short Language;
-	BOOL IsRequired;
-	BOOL AddCaret = FALSE;
-	char Buffer[100] = "                 ";
-	char NewBuffer[100];
-	char CheckDigit[2];
-	char FirstDigits[20];
-	unsigned i;
-	unsigned strLength;
-	BOOL ValidAssetBuilderNumber = FALSE;
-	CheckDigit[0] = '\0';
-	FirstDigits[0] = '\0';
-	NewBuffer[0] = '\0';
-	if (pIsCNValid == NULL)
+	try
 	{
-		return E_INVALIDARG;
-	}
-	tempBSTR = SysAllocString(L"");
-	statusMessage = SysAllocString(L"");
-	put_IsValid(FALSE);
-	m_pITMGBaseAttribute->Validate( pIsCNValid);
-	if (*pIsCNValid != MC_OK) 
-	{
-		goto terminate;
-	}
-	get_UnFormattedValue(&tempBSTR);
-	BSTRToChar(Buffer, tempBSTR);
-	strLength = strlen(Buffer);
-	get_IsRequired(&IsRequired);
-	if ((strLength == 0) && (IsRequired == FALSE))
-	{
-		goto terminate;
-	}
-
-	if (strLength != strspn(Buffer, ",-1234567890^ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"))
-	{
-		*pIsCNValid = MC_ERROR;
-		GetResourceString(TMGmsgCNTNO_INV_CHAR, Language, &statusMessage);
-		put_StatusMessage(statusMessage);
-		goto terminate;
-	}
-
-	if (m_AllowAssetBuilder) 
-	{
-		if ((strcmp(Buffer,"00250001")  == 0) || (strcmp(Buffer,"0025,000-1") == 0) ||
-			(strcmp(Buffer,"00250002")  == 0) || (strcmp(Buffer,"0025,000-2") == 0) ||
-			(strcmp(Buffer, "250001") == 0) || (strcmp(Buffer, "250002") == 0))
-		{
-			ValidAssetBuilderNumber = TRUE;
-			*pIsCNValid = MC_OK;
-			goto terminate;
-		}
-	}
-	if (m_AllowAssetBuilder == FALSE)
-		if ((strcmp(Buffer, "00250001") == 0) || (strcmp(Buffer, "0025,000-1") == 0) ||
-			(strcmp(Buffer, "00250002") == 0) || (strcmp(Buffer, "0025,000-2") == 0) ||
-			(strcmp(Buffer, "250001") == 0) || (strcmp(Buffer, "250002") == 0))
-		{
-			*pIsCNValid = MC_ERROR;
-			GetResourceString(TMGmsgCNTNO_INV_CHKD, Language, &statusMessage);
-			put_StatusMessage(statusMessage);
-			goto terminate;
-		}
-	if (strchr(Buffer, '-') != NULL)
-	{
-		if ('-' != Buffer[strLength-2])
-		{			 
-			*pIsCNValid = MC_ERROR;
-			GetResourceString(TMGmsgCNTNO_INV_FMT, Language, &statusMessage);
-			put_StatusMessage(statusMessage);			
-			goto terminate;
-		}
-	}
-	if (strchr(Buffer, '^') != NULL)
-	{
-		AddCaret = TRUE; 
-		if ('^' != Buffer[strLength-1])
-		{			
-			*pIsCNValid = MC_ERROR;
-			GetResourceString(TMGmsgCNTNO_INV_FMT, Language, &statusMessage);			
-			put_StatusMessage(statusMessage);
-			goto terminate;
-		}
-	}
-
-	strLength = 0;
-	for (i=0; i<strlen(Buffer); i++)
-	{
-		if ((Buffer[i] != ',') && (Buffer[i] != ' ') && (Buffer[i] != '-') && (Buffer[i] != '^'))
-		{
-		
-			NewBuffer[strLength] = Buffer[i];
-			strLength++;
-		}
-	}
-	NewBuffer[strLength] = '\0';
-	if ((strLength != 8) && (strLength != 7))
-	
-		*pIsCNValid = MC_ERROR;
-		GetResourceString(TMGmsgCNTNO_INV_LEN, Language, &statusMessage);
-		put_StatusMessage(statusMessage);
-		goto terminate;
-	}
-
-	strncat(FirstDigits, &NewBuffer[0], 7);
-	strncat(CheckDigit, &NewBuffer[7], 1);
-	if (strLength == 7)
-	{
-		if (m_IsCheckDigitRequired)
-		{
-			*pIsCNValid = MC_ERROR;
-			GetResourceString(TMGmsgCNTNO_INV_NOCHKD, Language, &statusMessage);
-			put_StatusMessage(statusMessage);
-			goto terminate;
-		}
-	CheckDigit[0] = '\0';
-	}
-	*pIsCNValid = MC_CalcCheckDigit(FirstDigits, CheckDigit, CHECK_DIGIT);
-	if (*pIsCNValid != MC_OK)
-	{
-		*pIsCNValid = MC_ERROR;
-		GetResourceString(TMGmsgCNTNO_INV_CHKD, Language, &statusMessage);
-		put_StatusMessage(statusMessage);
-		goto terminate;
-	}
-
-terminate:
-	if (*pIsCNValid == MC_OK)
-	{
-		if (ValidAssetBuilderNumber)
-		{
-			if (Buffer[8] == '-')
-			{
-				CharToBSTR(&tempBSTR, Buffer);
-				m_pITMGBaseAttribute->put_Value(tempBSTR);
-				//Create unformatted number
-				strncpy(NewBuffer, &Buffer[2], 2);
-				strncpy(&NewBuffer[2], &Buffer[5], 3);  
-				NewBuffer[5] = Buffer[9];
-				NewBuffer[6] = '\0';
-				CharToBSTR(&tempBSTR, NewBuffer);
-				put_UnFormattedValue(tempBSTR);
-			}
-			else
-			{
-
-				if (strlen(Buffer) == 8)
-				{
-					strncpy(NewBuffer,&Buffer[2], 6);
-					NewBuffer[6] = '\0';
-					strcpy(Buffer, NewBuffer);
-				}
-				CharToBSTR(&tempBSTR,Buffer);
-				put_UnFormattedValue(tempBSTR);
-
-				strncpy(NewBuffer, Buffer, 5);
-				NewBuffer[5] = '-';
-				NewBuffer[6] = Buffer[5];
-				NewBuffer[7] = '\0';
-				CharToBSTR(&tempBSTR, NewBuffer);
-				m_pITMGBaseAttribute->put_Value(tempBSTR);
-			}
-		
-			put_IsValid(TRUE);
-		}
+		char *temp;
+		temp = CONVERT_BSTR_TO_CHAR(source);
+		if (temp == NULL)
+			strcpy(destination,"");
 		else
 		{
-			strcat(FirstDigits, CheckDigit);
-			if (AddCaret)
-				strcat(FirstDigits, "^");
-
-			CharToBSTR(&tempBSTR, FirstDigits);
-			put_UnFormattedValue(tempBSTR);
-			if (FirstDigits[strlen(FirstDigits)-1] == '^')
-			{
-				FirstDigits[strlen(FirstDigits)-1] = '\0';
-			}
-
-			if (strlen(FirstDigits) == 8)
-			{
-				strncpy(Buffer, FirstDigits, 4);
-				Buffer[4] = ',';
-				strncpy(&Buffer[5], &FirstDigits[4], 3);
-				Buffer[8] = '-';
-				Buffer[9] = FirstDigits[7];
-				Buffer[10] = '\0';
-			}
-			else
-			{
-				strcpy(Buffer, FirstDigits);
-			}
-			CharToBSTR(&tempBSTR, Buffer);
-			m_pITMGBaseAttribute->put_Value(tempBSTR);
-
-			// the data is valid
-			put_IsValid(TRUE);
+			strcpy(destination, (char *)temp);
+			delete temp;
+			temp = NULL;
 		}
 	}
-	else
+	catch(_com_error)
 	{
-		put_IsValid(FALSE);
+		throw;
 	}
-	SysFreeString(tempBSTR);
-	SysFreeString(statusMessage);
-	return S_OK;
+
 }
 
-
-
-STDMETHODIMP TestNumber::get_Value(BSTR * pVal)
+void CharToBSTR(BSTR *destination, const char * source)
 {
-	return m_pITMGBaseAttribute->get_Value(pVal);	
-}
 
-STDMETHODIMP TestNumber::put_Value(BSTR newVal)
-{
-	HRESULT hr = S_OK;
-	BOOL AutoValidate;	
-
-	put_IsValid(FALSE);
-	get_AutoValidate(&AutoValidate);
-
-	if (AutoValidate)
+	if (destination == NULL)
 	{
-		short Status;
-		BSTR TempCN = SysAllocString(L"");	
-		BSTR TempUnFormattedCN= SysAllocString(L"");
-		get_Value(&TempCN);	
-		get_UnFormattedValue(&TempUnFormattedCN);
+		BSTR tempBSTR = NULL;
+		tempBSTR = SysAllocString(L"");
+		destination = &tempBSTR;
+	}
+	SysFreeString(*destination);
+	*destination = CONVERT_CHAR_TO_BSTR(source);
+}
 
-		if (newVal == NULL)
-			hr = put_UnFormattedValue(L"");
-		else
-			hr = put_UnFormattedValue(newVal);
-		if (SUCCEEDED(hr))
+int bstrcmp(BSTR string1, BSTR string2)
+{
+	return (wcscmp(string1, string2));
+}
+
+int _bstricmp(BSTR string1, BSTR string2)
+{
+	wchar_t *TempString1 = (wchar_t *)string1;
+	wchar_t *TempString2 = (wchar_t *)string2;
+
+	return (_wcsicmp(TempString1, TempString2));
+}
+
+
+BOOL TMGConvertLongToBSTR( long LongVal, BSTR * BstrVal)
+{
+	BOOL Status=MC_OK;
+	wchar_t UniCodeBuffer[50]=L"";
+
+	_ltow( LongVal, UniCodeBuffer, 10);
+
+	if (BstrVal!= NULL)
 		{
-			hr = Validate(&Status);
-			if (Status != MC_OK)
-			{
-				hr = m_pITMGBaseAttribute->put_Value(L"");
-				if (SUCCEEDED(hr))
-				{
-				if (newVal == NULL)
-					hr = put_UnFormattedValue(L"");
-				else
-					hr = put_UnFormattedValue(newVal);
-				}
-			}
-
-			
+		SysFreeString(*BstrVal);	
+		*BstrVal= SysAllocString(UniCodeBuffer);
 		}
-
-	
-		SysFreeString(TempCN);
-		SysFreeString(TempUnFormattedCN);
-	}
 	else
-	{
-		hr = m_pITMGBaseAttribute->put_Value(L"");
-		if (SUCCEEDED(hr))
 		{
-			if (newVal == NULL)
-				hr = put_UnFormattedValue(L"");
-			else
-				hr = put_UnFormattedValue(newVal);
-		}
-	}
-
-	return S_OK;
-}
-
-
-STDMETHODIMP TestNumber::get_Name(BSTR * pVal)
-{
-	return m_pITMGBaseAttribute-> get_Name(pVal);
-	
-}
-
-
-STDMETHODIMP TestNumber::put_Name(BSTR newVal)
-{
-	return m_pITMGBaseAttribute-> put_Name(newVal);
-}
-
-
-STDMETHODIMP TestNumber::get_UnFormattedValue(BSTR * pVal)
-{	
-	return m_pITMGBaseAttribute->get_UnFormattedValue(pVal);
-}
-
-STDMETHODIMP TestNumber::put_UnFormattedValue(BSTR newVal)
-{
-	char temp[20];
-	long rc = 0;
-	BSTRToChar(temp, newVal);
-	BSTR myBSTR = SysAllocString(L"");
-	CharToBSTR(&myBSTR, _strupr(temp));
-	rc = m_pITMGBaseAttribute->put_UnFormattedValue(myBSTR);
-	//return m_pITMGBaseAttribute->put_UnFormattedValue(newVal);
-	return rc;
-}
-
-
-STDMETHODIMP TestNumber::get_IsRequired(BOOL * pVal)
-{
-	return m_pITMGBaseAttribute->get_IsRequired(pVal);
-}
-
-
-
-STDMETHODIMP TestNumber::put_IsRequired(BOOL newVal)
-{
-	short IsValid;
-
-	HRESULT hr=m_pITMGBaseAttribute->put_IsRequired(newVal);
-
-	if (SUCCEEDED(hr))
-	{
-		hr = Validate(&IsValid);
-	}
-
-	return hr;		
-}
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::get_AutoValidate(BOOL * pVal)
-{
-	return m_pITMGBaseAttribute->get_AutoValidate(pVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::put_AutoValidate(BOOL newVal)
-{
-	return m_pITMGBaseAttribute->put_AutoValidate(newVal);
-	
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::get_IsValid(BOOL * pVal)
-{
-	return m_pITMGBaseAttribute->get_IsValid(pVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::put_IsValid(BOOL newVal)
-{
-	return m_pITMGBaseAttribute->put_IsValid(newVal);
-	
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::get_MaxLength(short * pVal)
-{
-	return m_pITMGBaseAttribute->get_MaxLength(pVal);
-	
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::put_MaxLength(short newVal)
-{
-	return m_pITMGBaseAttribute->put_MaxLength(newVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::get_Language(short * pVal)
-{
-	return m_pITMGBaseAttribute->get_Language(pVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::put_Language(short newVal)
-{
-	return m_pITMGBaseAttribute->put_Language(newVal);
-}
-
-
-STDMETHODIMP TestNumber::get_StatusMessage(BSTR * pVal)
-{
-	return m_pITMGBaseAttribute->get_StatusMessage(pVal);		
-}
-
-STDMETHODIMP TestNumber::put_StatusMessage(BSTR newVal)
-{
-	return m_pITMGBaseAttribute->put_StatusMessage(newVal);	
-}
-
-
-STDMETHODIMP TestNumber::get_IsCheckDigitRequired(BOOL * pVal)
-{
-
-	
-	// Make sure argument is not NULL.l
-	if (pVal == NULL)
-		{
-		return E_INVALIDARG;
+		Status =  MC_ERROR;
 		}
 
-	*pVal = m_IsCheckDigitRequired;
-
-	return S_OK;
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::put_IsCheckDigitRequired(BOOL newVal)
-{
-	if (newVal)
-		m_IsCheckDigitRequired = TRUE;
-	else
-		m_IsCheckDigitRequired = FALSE;
-
-	return S_OK;
-}
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::GetClassID (CLSID *pClassID)
-{
-	if ( pClassID ==NULL)
-		return E_INVALIDARG;
-	*pClassID = GetObjectCLSID();
-	return S_OK;		
-
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-
-STDMETHODIMP TestNumber::IsDirty(void)
-{
-//	return m_pITMGBaseAttribute->IsDirty();
-	BOOL IsDirty;
-	m_pITMGBaseAttribute->get_IsDirty(& IsDirty);
-	return (IsDirty) ? S_OK : S_FALSE;
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::IsDirtyNG(void)
-{
-//	return m_pITMGBaseAttribute->IsDirty();
-	BOOL IsDirty;
-	m_pITMGBaseAttribute->get_IsDirty(& IsDirty);
-	return (IsDirty) ? S_OK : S_FALSE;
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::Load(LPSTREAM pStm)
-{
-	return m_pITMGBaseAttribute->Load(pStm);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::Save(LPSTREAM pStm, BOOL fClearDirty)
-{
-	return m_pITMGBaseAttribute->Save(pStm, fClearDirty);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::GetSizeMax(ULARGE_INTEGER FAR* Size)
-{
-	return m_pITMGBaseAttribute->GetSizeMax(Size);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::InitNew()
-{
-	return m_pITMGBaseAttribute->InitNew();
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::get_ParentBusinessObject(ITMGBase* * pVal)
-{
-	return m_pITMGBaseAttribute->get_ParentBusinessObject(pVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::put_ParentBusinessObject(ITMGBase* newVal)
-{
-	return m_pITMGBaseAttribute->put_ParentBusinessObject(newVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::get_IsDirty(BOOL * pVal)
-{
-	return m_pITMGBaseAttribute->get_IsDirty(pVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::put_IsDirty(BOOL newVal)
-{
-	return m_pITMGBaseAttribute->put_IsDirty(newVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::get_DataStorageArea(BSTR *  pVal)
-{
-	return m_pITMGBaseAttribute->get_DataStorageArea(pVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::put_DataStorageArea(BSTR newVal)
-{
-	return m_pITMGBaseAttribute->put_DataStorageArea(newVal);
+ 	return Status;
 }
 
 
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::ClearData()
+short TMGConvertBSTRToLong(BSTR bstrVal, long *longVal)
 {
-	return m_pITMGBaseAttribute->ClearData();
-}
+	char Buffer[100];
+	short returnCode = MC_OK;
 
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::Backup()
-{
-	return m_pITMGBaseAttribute->Backup();
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::Restore()
-{
-	return m_pITMGBaseAttribute->Restore();
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-
-STDMETHODIMP TestNumber::Copy(ITMGBase * AnotherObject)
-{
-	HRESULT hr;
-	CComPtr <ITestNumber>	pTempNumber;
-	//
-	if (AnotherObject!=NULL)
+	BSTRToChar(Buffer, bstrVal);
+	
+	if (strlen(Buffer) == 0)
 	{
-		hr= AnotherObject->QueryInterface(IID_ITestNumber, ( void ** ) & pTempNumber);
+		returnCode = MC_ERROR;
 	}
 	else
 	{
-		return E_INVALIDARG;
+		*longVal = atol(Buffer);
 	}
-	//
-	if (SUCCEEDED (hr))		
+
+	return returnCode;
+}
+
+void BSTRncCpy( BSTR *dest, const BSTR src, int Start, int ChrCount )
+{
+	_bstr_t TempSrc = src;
+	_bstr_t TempDest;
+
+	char TempSrcBuffer[64]="";
+	char TempDestBuffer[64]="";
+
+	strcpy (TempSrcBuffer,(char *)TempSrc);
+	strncpy(TempDestBuffer,TempSrcBuffer+Start,ChrCount );
+
+	TempDest = TempDestBuffer;
+
+	if (dest!= NULL)
 	{
-		pTempNumber->put_IsCheckDigitRequired (m_IsCheckDigitRequired);
-		pTempNumber->put_AllowAssetBuilder (m_AllowAssetBuilder);
-		//
-		return m_pITMGBaseAttribute->Copy ( AnotherObject );
+		SysFreeString(*dest);	
+		*dest = SysAllocString(TempDest);
 	}
-	else
+	
+}
+
+void BSTRncReplace (BSTR *dest, const BSTR src, int Start, int ChrCount)
+
+{
+	_bstr_t TempSrc = src;
+	_bstr_t TempDest = *dest;
+
+	char TempSrcBuffer[64]="";
+	char TempDestBuffer[64]="";
+
+	strcpy (TempSrcBuffer,(char *)TempSrc);
+	strcpy (TempDestBuffer, (char *)TempDest);
+
+	for (int i = 0; i < ChrCount; i++){
+		TempDestBuffer[i + Start] = TempSrcBuffer[i];
+	}
+
+	TempDest = TempDestBuffer;
+
+
+	if (dest!= NULL)
 	{
-		return E_INVALIDARG;
+		SysFreeString(*dest);	
+		*dest = SysAllocString(TempDest);
 	}
-	//
-}
-
-/////////////////////////////////////////////////////////////////////////////
-//
-/////////////////////////////////////////////////////////////////////////////
-//
-
-
-STDMETHODIMP TestNumber::get_IsApplicable(BOOL * pVal)
-{
-	return m_pITMGBaseAttribute->get_IsApplicable(pVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::put_IsApplicable(BOOL newVal)
-{
-	return m_pITMGBaseAttribute->put_IsApplicable(newVal);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// 
-
-STDMETHODIMP TestNumber::get_AllowAssetBuilder(BOOL * pVal)
-{
-	// Make sure argument is not NULL.l
-	if (pVal == NULL)
-		{
-		return E_INVALIDARG;
-		}
-
-	*pVal = m_AllowAssetBuilder;
-
-	return S_OK;
-}
-
-STDMETHODIMP TestNumber::put_AllowAssetBuilder(BOOL newVal)
-{
-	if (newVal)
-		m_AllowAssetBuilder = TRUE;
-	else
-		m_AllowAssetBuilder = FALSE;
-	return S_OK;
-}
-HRESULT STDMETHODCALLTYPE TestNumber::Activate(void)
-{
-	HRESULT hr;
-	if (m_pITMGBaseAttribute == NULL)
-	{
-			hr= CoCreateInstance( 
-							CLSID_TMGBaseAttribute,
-							NULL,		// outer 
-							CLSCTX_ALL,
-							IID_ITMGBaseAttribute,
-							(void **)&m_pITMGBaseAttribute);
-			return hr; 
-	}
-
-
-
-	return S_OK;
-}
-
-void STDMETHODCALLTYPE TestNumber::Deactivate( void){
-}
-
-BOOL STDMETHODCALLTYPE TestNumber::CanBePooled( void){
-	return FALSE;
+	
 }
