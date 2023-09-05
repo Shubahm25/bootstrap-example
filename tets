@@ -1,10 +1,10 @@
 
 
 #include "stdafx.h"
-#include "TMGAttributes.h"
+#include "Attributes.h"
 #include "TestNumber.h"
 #include "mcc2.h"
-#include "BSTRFunctions.h"
+#include "Functions.h"
 
 extern void GetResourceString(short resourceID, short language, BSTR *resourceString);
 
