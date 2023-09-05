@@ -1,342 +1,730 @@
-Public Function sendMail(ByVal sRequestCorrelationId As String, _
-                                     ByVal objRequest As Object, _
-                                     ByRef objresult As Object) As Long
-Attribute sendMail.VB_MemberFlags = "40"
-On Error GoTo ErrorHandler
-    Dim sAuthConnectionString As String
-    Dim objCCSSession As Object
-    Dim rc As Long
-    'Dim strSessionId As String
-    Dim strEncryptedID As String
-    Dim xmlReturn As String
-    Dim strEmailIID As String
-    Dim strAccessID As String
-    Dim objDatabase As Object
-    Const FUNCNAME = "sendMail"
-    Dim strSQL As String
-    Dim common As Object
-    Dim strLanguage As String
-    
-    Dim strInputAddr1 As String
-    Dim strInputAddr2 As String
-    Dim strInputAddr3 As String
-    Dim strInputAddr4 As String
-    Dim strInputAddr5 As String
-    Dim strInputAddr6 As String
-    
-    Dim strCustomerName As String
-    Dim strEmailAddr As String
-    
-    Dim strAccessIDType
-    Dim strPassword
-    Dim strPasswordStaleTime
-    Dim strRequestingApp
-    Dim strFirstName
-    Dim strBrand
-    Dim strMailingType
-    Dim strGroupingIdentifier
-    Dim arrAddressLines(0 To 5)
-    Dim strMailingDeliveryCode
-    Dim strDateToMail
-    Dim strSurName
-    Dim strSalutation As String
-    Dim strRegardingLine As String
-    Dim strIDCardName As String
-   
-    Dim strCity
-    Dim strProv
-    Dim strCountry
-    Dim strPostalCode
 
-    
-    Dim strDisplayName As String
-    
-    Dim NumAddrLines As Integer
-    
-    Dim blnBreakDone As Boolean
-    Dim blnEmail As Boolean
-    Dim strtemp As String
-    If GetXMLInput(objRequest, objresult, FUNCNAME & "/MailingType", strMailingType, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-    If GetXMLInput(objRequest, objresult, FUNCNAME & "/DateToMail", strDateToMail, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-    If GetXMLInput(objRequest, objresult, FUNCNAME & "/Language", strLanguage, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-    If GetXMLInput(objRequest, objresult, FUNCNAME & "/AppName", strRequestingApp, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-    strDateToMail = Format(strDateToMail, "yyyy-mm-dd")
-    Call GetXMLInput(objRequest, objresult, FUNCNAME & "/PasswordStaleTime", strPasswordStaleTime, XML_ATTRIB_OPTIONAL)
-    Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Password", strPassword, XML_ATTRIB_OPTIONAL)
-    If strPasswordStaleTime <> "" Then strPasswordStaleTime = Format(strPasswordStaleTime, "yyyy/mm/dd hh:nn:ss AMPM")
-    
-    Select Case UCase(strMailingType)
-        Case "ABC1", "ABC2", "ABC3", "ABC4", "ABC5", "ABC6"
-            blnEmail = True
-      
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/EmailAddress", strEmailAddr, XML_ATTRIB_OPTIONAL)
-         
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Email-id", strEmailIID, XML_ATTRIB_OPTIONAL)
-        'POSTAL TYPES
-        Case Else
-    
-            If GetXMLInput(objRequest, objresult, FUNCNAME & "/EmailID", strEmailIID, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-            If GetXMLInput(objRequest, objresult, FUNCNAME & "/MailingDeliveryCode", strMailingDeliveryCode, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-            If GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine1", strInputAddr1, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-            'If GetXMLInput(objRequest, objResult, FUNCNAME & "/MailingLocationCode", strMailingLocationCode, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-            If GetXMLInput(objRequest, objresult, FUNCNAME & "/Brand", strBrand, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-            If GetXMLInput(objRequest, objresult, FUNCNAME & "/FirstName", strFirstName, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-            If GetXMLInput(objRequest, objresult, FUNCNAME & "/SurName", strSurName, XML_ATTRIB_REQUIRED) <> 0 Then sendMail = 8
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/GroupingIdentifier", strGroupingIdentifier, XML_ATTRIB_OPTIONAL)
-        'OPTIONAL POSTAL XMLINPUT
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Salutation", strSalutation, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/DisplayName", strDisplayName, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AccessID", strAccessID, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AccessIDType", strAccessIDType, XML_ATTRIB_OPTIONAL)
 
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/City", strCity, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Prov", strProv, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/Country", strCountry, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/PostalCode", strPostalCode, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/RegardingLine", strRegardingLine, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine2", strInputAddr2, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine3", strInputAddr3, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine4", strInputAddr4, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine5", strInputAddr5, XML_ATTRIB_OPTIONAL)
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/AddrLine6", strInputAddr6, XML_ATTRIB_OPTIONAL)
-            
-    
-            Call GetXMLInput(objRequest, objresult, FUNCNAME & "/IDCardName", strIDCardName, XML_ATTRIB_OPTIONAL)
-            
-            If Len(Trim(strPostalCode)) = 6 And UCase(Left(strCountry, 2)) = "CDE" Then
-                strPostalCode = Left(strPostalCode, 3) & " " & Mid(strPostalCode, 4)
-            End If
-    End Select
-    
-    If UCase(strMailingType) = "ABC" Or (UCase(strMailingType) = "ABC1") Then
-        arrAddressLines(0) = strInputAddr1
-        arrAddressLines(1) = strInputAddr2
-        arrAddressLines(2) = strInputAddr3
-        arrAddressLines(3) = strInputAddr4
-        arrAddressLines(4) = strInputAddr5
-        arrAddressLines(5) = strInputAddr6
-        strCustomerName = strDisplayName
-    ElseIf Not blnEmail Then
-        If Len(strDisplayName) > 30 Then
-       
-         If strBrand = "SGF" Then
-            strCustomerName = strFirstName & " " & strSurName
-            If Len(strCustomerName) > 30 Then
-                strCustomerName = Left(strFirstName, 1) & " " & Left(strSurName, 28)
-            End If
-        Else
-            strCustomerName = strSalutation & " " & strFirstName & " " & strSurName
-            If Len(strCustomerName) > 30 Then
-                strCustomerName = strFirstName & " " & strSurName
-                If Len(strCustomerName) > 30 Then
-                   strCustomerName = Left(strFirstName, 1) & " " & Left(strSurName, 28)
-                End If
-            End If
-        End If
-        Else
-            'if less than 30 chars, use the displayname from CIF
-            strCustomerName = strDisplayName
-        End If
-        
-        'Do Address
-        NumAddrLines = 0
-        
-        'There is a regarding line, add it as the first line
-        If strRegardingLine <> "" Then
-            arrAddressLines(NumAddrLines) = Left(strRegardingLine, 50)
-            NumAddrLines = NumAddrLines + 1
-        End If
-        
-        If UCase(Left(strCountry, 2)) = "OTC" Then
-            If strInputAddr1 <> "" Then
-                arrAddressLines(NumAddrLines) = strInputAddr1
-                NumAddrLines = NumAddrLines + 1
-            End If
-            If strInputAddr2 <> "" Then
-                arrAddressLines(NumAddrLines) = strInputAddr2
-                NumAddrLines = NumAddrLines + 1
-            End If
-            If strInputAddr3 <> "" Then
-                arrAddressLines(NumAddrLines) = strInputAddr3
-                NumAddrLines = NumAddrLines + 1
-            End If
-            If strInputAddr4 <> "" Then
-                arrAddressLines(NumAddrLines) = strInputAddr4
-                NumAddrLines = NumAddrLines + 1
-            End If
-        Else
-            If Len(strInputAddr1) <= 50 Then
-                arrAddressLines(NumAddrLines) = strInputAddr1
-                NumAddrLines = NumAddrLines + 1
-                If strInputAddr2 <> "" Then
-                    arrAddressLines(NumAddrLines) = BreakString(strInputAddr2, 50, blnBreakDone)
-                    NumAddrLines = NumAddrLines + 1
-                    If blnBreakDone Then
-                        arrAddressLines(NumAddrLines) = BreakString(Mid(strInputAddr2, Len(arrAddressLines(NumAddrLines - 1))), 50, blnBreakDone)
-                        NumAddrLines = NumAddrLines + 1
-                    End If
-                End If
-            ElseIf Len(strInputAddr2) > 50 Then
-            
-                strtemp = strInputAddr1 & " " & strInputAddr2
-                arrAddressLines(NumAddrLines) = BreakString(strtemp, 50, blnBreakDone)
-                strtemp = Mid(strtemp, Len(arrAddressLines(NumAddrLines)) + 1)
-                NumAddrLines = NumAddrLines + 1
-                arrAddressLines(NumAddrLines) = BreakString(strtemp, 50, blnBreakDone)
-                strtemp = Mid(strtemp, Len(arrAddressLines(NumAddrLines)))
-                NumAddrLines = NumAddrLines + 1
-                arrAddressLines(NumAddrLines) = Left(strtemp, 50)
-                NumAddrLines = NumAddrLines + 1
-            Else
-            
-                arrAddressLines(NumAddrLines) = BreakString(strInputAddr1, 50, blnBreakDone)
-                strtemp = Mid(strInputAddr1, Len(arrAddressLines(NumAddrLines)) + 1)
-                NumAddrLines = NumAddrLines + 1
-                arrAddressLines(NumAddrLines) = Left(strtemp, 50)
-                NumAddrLines = NumAddrLines + 1
-                arrAddressLines(NumAddrLines) = strInputAddr2 'Mid(strInputAddr2, 50)
-                NumAddrLines = NumAddrLines + 1
-            End If
-            strtemp = strCity & " " & strProv & "  " & strPostalCode
-                
-            If Len(strtemp) > 50 Then
-                arrAddressLines(NumAddrLines) = Left(strCity & " " & strProv, 50)
-                NumAddrLines = NumAddrLines + 1
-                arrAddressLines(NumAddrLines) = strPostalCode
-                NumAddrLines = NumAddrLines + 1
-            Else
-                arrAddressLines(NumAddrLines) = strtemp
-                NumAddrLines = NumAddrLines + 1
-            End If
-            
-            'if usa, add country to bottom
-            If UCase(Left(strCountry, 1)) = "IRE" Then
-                arrAddressLines(NumAddrLines) = "Ireland"
-                NumAddrLines = NumAddrLines + 1
-            End If
-        End If
-    End If
-    
-    'If an IDCardName was not passed in then default it to the CustomerName that was derived above.
-    If Len(strIDCardName) = 0 Then
-        strIDCardName = strCustomerName
-    End If
-    
-    
-    If sendMail = 0 Then
-    
-        If Not blnEmail Then
-        
-            If (UCase(strMailingType) = "ABC12") Then
-                strMailingType = "ABC34"
-            End If
-            
-            Dim oMailerRequest As Object
-            Set oMailerRequest = CreateObject("Mailing_Request")
-            oMailerRequest.AccsId = strAccessID
-            oMailerRequest.AccsIdTyp = strAccessIDType
-            oMailerRequest.UserPswdTxt = strPassword
-            oMailerRequest.UserPswdXpryDt = IIf(IsDate(strPasswordStaleTime), Format(strPasswordStaleTime, "yyyy-MM-dd"), "")
-            oMailerRequest.LangCd = strLanguage
-            oMailerRequest.BrnCd = strBrand
-            oMailerRequest.MailTyp = strMailingType
-            oMailerRequest.GrpId = strGroupingIdentifier
-            oMailerRequest.MailDlvryCd = strMailingDeliveryCode
-            oMailerRequest.MailDlvryDt = Format(CDate(strDateToMail), "yyyy-MM-dd")
-            oMailerRequest.EbusIntrnlId = strEmailIID
-            oMailerRequest.AccsIdCrdNm = strIDCardName
-            oMailerRequest.PersSurNm = strSurName
-            oMailerRequest.PstlCd = strPostalCode
-            
-            Dim oCustAddr As Object
-            Set oCustAddr = CreateObject("PinIdMailing_RequestAddress")
-            oCustAddr.AddreNm = strCustomerName
-            oCustAddr.AddrLine1Txt = arrAddressLines(0)
-            oCustAddr.AddrLine2Txt = arrAddressLines(1)
-            oCustAddr.AddrLine3Txt = arrAddressLines(2)
-            oCustAddr.AddrLine4Txt = arrAddressLines(3)
-            oCustAddr.AddrLine5Txt = arrAddressLines(4)
-            oCustAddr.AddrLine6Txt = arrAddressLines(5)
-            
-            Set oMailerRequest.CstAddress = oCustAddr
-            
-            Dim oSpnsrAddr As Object
-            Set oSpnsrAddr = CreateObject("PinIdMailing_RequestAddress")
-     
-                
-            Set oMailerRequest.SpnsrAddress = oSpnsrAddr
-            
-            Dim oMailer As IDAndPasswordMailer.Mailer
-            Set oMailer = New IDAndPasswordMailer.Mailer
-              
-            Dim oMailerResponse As Object
-            
-            Set oMailerResponse = oMailer.CreateMailer(oMailerRequest)
-            
-        Else
-            Set objDatabase = CreateObject("Database")
-            sAuthConnectionString = objDatabase.GetConnectionString("Authentication")
-            strSQL = "INSERT INTO SendMail (id,AccessID,AccessIDType,Password," & _
-                    "PasswordStaleTime,Lang,Brand,MailingType," & _
-                    "GroupingIdentifier,CustomerName,AddressLine1,AddressLine2,AddressLine3," & _
-                    "AddressLine4,AddressLine5,AddressLine6,EmailAddress," & _
-                    "MailingDeliveryCode,Status,DateToMail,RequestingApp,SurName,PostalCode,IDCardName) VALUES ('" & _
-                    strEmailIID & "',"
-                    
-            If strAccessID = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strAccessID & "',"
-            If strAccessIDType = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strAccessIDType & "',"
-            If strPassword = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strPassword & "',"
-            If strPasswordStaleTime = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strPasswordStaleTime & "',"
-             'do escaping
-            strCustomerName = toSQLString(strCustomerName)
-            strIDCardName = toSQLString(strIDCardName)
-            Dim i As Integer
-            For i = 0 To 5
-               arrAddressLines(i) = toSQLString(arrAddressLines(i))
-            Next
-            
-            strEmailAddr = toSQLString(strEmailAddr)
-            strSurName = toSQLString(strSurName)
-             
-            strSQL = strSQL & "'" & strLanguage & "','" & strBrand & "','" & strMailingType & "','" & _
-                    strGroupingIdentifier & "','" & strCustomerName & "','" & arrAddressLines(0) & "','" & arrAddressLines(1) & "','" & _
-                    arrAddressLines(2) & "','" & arrAddressLines(3) & "','" & arrAddressLines(4) & "','" & arrAddressLines(5) & "',"
-            If strEmailAddr = "" Then strSQL = strSQL & "NULL," Else strSQL = strSQL & "'" & strEmailAddr & "',"
-            strSQL = strSQL & "'" & strMailingDeliveryCode & "','I','" & strDateToMail & "','" & strRequestingApp & "'," &  "','" & strSurName & "','" & strPostalCode & "','" & strIDCardName & "')"
-                    
-            On Error Resume Next
-            rc = objDatabase.RunSQL(sAuthConnectionString, strSQL)
-            If Err.Number <> 0 Then
-                Dim tmpErrEmail(4) As Variant
-                tmpErrEmail(0) = Err.Number
-                tmpErrEmail(1) = Err.Source
-                tmpErrEmail(2) = Err.Description & " the insert statment that caused this error was: " & strSQL
-                tmpErrEmail(3) = Err.HelpFile
-                tmpErrEmail(4) = Err.HelpContext
-                On Error GoTo ErrorHandler
-                Call Err.Raise(tmpErrEmail(0), tmpErrEmail(1), tmpErrEmail(2), tmpErrEmail(3), tmpErrEmail(4))
-            End If
-            On Error GoTo ErrorHandler
-        
-        End If
-    
-    End If
-    
-    xmlReturn = "<ReturnValues><" & FUNCNAME & ">" & xmlReturn & "</" & FUNCNAME & "></ReturnValues>"
-    
-    
-    If Not objresult.LoadReturnValuesXML(xmlReturn) Then
-        Err.Raise 8, PROGID, "Could not save xml return values to the ServiceResult object, xml:" & xmlReturn
-    End If
-    
-    Exit Function
-ErrorHandler:
-    Dim errNum
-    Dim errMsg
-    errNum = Err.Number
-    errMsg = "Error in sendMail: " & Err.Description
-    AddMessage errNum, ErrorMessage, "Unexpected error in sendMail", errMsg, objresult
-    WriteErrorLog errMsg, PROGID, severe, "Support", Err.Number
-    sendMail = Web_error
+#include "stdafx.h"
+#include "TMGAttributes.h"
+#include "TestNumber.h"
+#include "mcc2.h"
+#include "BSTRFunctions.h"
 
-End Function
+extern void GetResourceString(short resourceID, short language, BSTR *resourceString);
+
+
+STDMETHODIMP TestNumber::InterfaceSupportsErrorInfo(REFIID riid)
+{
+	static const IID* arr[] = 
+	{
+		&IID_ITestNumber,
+		&IID_ITMGBaseAttribute,
+		&IID_ITMGBase,
+	};
+
+	for (int i=0;i<sizeof(arr)/sizeof(arr[0]);i++)
+	{
+		if (ATL::InlineIsEqualGUID(*arr[i],riid))
+			return S_OK;
+	}
+	return S_FALSE;
+}
+
+
+
+
+TestNumber::TestNumber () :		
+					
+							m_pITMGBaseAttribute(NULL),
+							m_IsCheckDigitRequired(TRUE),
+							m_AllowAssetBuilder(FALSE)
+
+{
+	
+	HRESULT hr= CoCreateInstance( 
+							CLSID_TMGBaseAttribute,
+							NULL,		// outer 
+							CLSCTX_INPROC_SERVER,
+							IID_ITMGBaseAttribute,
+							(void **)&m_pITMGBaseAttribute);
+}
+
+
+							
+							
+TestNumber::~TestNumber()
+{
+
+}
+
+
+STDMETHODIMP TestNumber::Validate( short * pIsCNValid)
+{
+	BSTR tempBSTR;
+	BSTR statusMessage;
+	short Language;
+	BOOL IsRequired;
+	BOOL AddCaret = FALSE;
+	char Buffer[100] = "                 ";
+	char NewBuffer[100];
+	char CheckDigit[2];
+	char FirstDigits[20];
+	unsigned i;
+	unsigned strLength;
+	BOOL ValidAssetBuilderNumber = FALSE;
+	CheckDigit[0] = '\0';
+	FirstDigits[0] = '\0';
+	NewBuffer[0] = '\0';
+	if (pIsCNValid == NULL)
+	{
+		return E_INVALIDARG;
+	}
+	tempBSTR = SysAllocString(L"");
+	statusMessage = SysAllocString(L"");
+	put_IsValid(FALSE);
+	m_pITMGBaseAttribute->Validate( pIsCNValid);
+	if (*pIsCNValid != MC_OK) 
+	{
+		goto terminate;
+	}
+	get_UnFormattedValue(&tempBSTR);
+	BSTRToChar(Buffer, tempBSTR);
+	strLength = strlen(Buffer);
+	get_IsRequired(&IsRequired);
+	if ((strLength == 0) && (IsRequired == FALSE))
+	{
+		goto terminate;
+	}
+
+	if (strLength != strspn(Buffer, ",-1234567890^ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"))
+	{
+		*pIsCNValid = MC_ERROR;
+		GetResourceString(TMGmsgCNTNO_INV_CHAR, Language, &statusMessage);
+		put_StatusMessage(statusMessage);
+		goto terminate;
+	}
+
+	if (m_AllowAssetBuilder) 
+	{
+		if ((strcmp(Buffer,"00250001")  == 0) || (strcmp(Buffer,"0025,000-1") == 0) ||
+			(strcmp(Buffer,"00250002")  == 0) || (strcmp(Buffer,"0025,000-2") == 0) ||
+			(strcmp(Buffer, "250001") == 0) || (strcmp(Buffer, "250002") == 0))
+		{
+			ValidAssetBuilderNumber = TRUE;
+			*pIsCNValid = MC_OK;
+			goto terminate;
+		}
+	}
+	if (m_AllowAssetBuilder == FALSE)
+		if ((strcmp(Buffer, "00250001") == 0) || (strcmp(Buffer, "0025,000-1") == 0) ||
+			(strcmp(Buffer, "00250002") == 0) || (strcmp(Buffer, "0025,000-2") == 0) ||
+			(strcmp(Buffer, "250001") == 0) || (strcmp(Buffer, "250002") == 0))
+		{
+			*pIsCNValid = MC_ERROR;
+			GetResourceString(TMGmsgCNTNO_INV_CHKD, Language, &statusMessage);
+			put_StatusMessage(statusMessage);
+			goto terminate;
+		}
+	if (strchr(Buffer, '-') != NULL)
+	{
+		if ('-' != Buffer[strLength-2])
+		{			 
+			*pIsCNValid = MC_ERROR;
+			GetResourceString(TMGmsgCNTNO_INV_FMT, Language, &statusMessage);
+			put_StatusMessage(statusMessage);			
+			goto terminate;
+		}
+	}
+	if (strchr(Buffer, '^') != NULL)
+	{
+		AddCaret = TRUE; 
+		if ('^' != Buffer[strLength-1])
+		{			
+			*pIsCNValid = MC_ERROR;
+			GetResourceString(TMGmsgCNTNO_INV_FMT, Language, &statusMessage);			
+			put_StatusMessage(statusMessage);
+			goto terminate;
+		}
+	}
+
+	strLength = 0;
+	for (i=0; i<strlen(Buffer); i++)
+	{
+		if ((Buffer[i] != ',') && (Buffer[i] != ' ') && (Buffer[i] != '-') && (Buffer[i] != '^'))
+		{
+		
+			NewBuffer[strLength] = Buffer[i];
+			strLength++;
+		}
+	}
+	NewBuffer[strLength] = '\0';
+	if ((strLength != 8) && (strLength != 7))
+	
+		*pIsCNValid = MC_ERROR;
+		GetResourceString(TMGmsgCNTNO_INV_LEN, Language, &statusMessage);
+		put_StatusMessage(statusMessage);
+		goto terminate;
+	}
+
+	strncat(FirstDigits, &NewBuffer[0], 7);
+	strncat(CheckDigit, &NewBuffer[7], 1);
+	if (strLength == 7)
+	{
+		if (m_IsCheckDigitRequired)
+		{
+			*pIsCNValid = MC_ERROR;
+			GetResourceString(TMGmsgCNTNO_INV_NOCHKD, Language, &statusMessage);
+			put_StatusMessage(statusMessage);
+			goto terminate;
+		}
+	CheckDigit[0] = '\0';
+	}
+	*pIsCNValid = MC_CalcCheckDigit(FirstDigits, CheckDigit, CHECK_DIGIT);
+	if (*pIsCNValid != MC_OK)
+	{
+		*pIsCNValid = MC_ERROR;
+		GetResourceString(TMGmsgCNTNO_INV_CHKD, Language, &statusMessage);
+		put_StatusMessage(statusMessage);
+		goto terminate;
+	}
+
+terminate:
+	if (*pIsCNValid == MC_OK)
+	{
+		if (ValidAssetBuilderNumber)
+		{
+			if (Buffer[8] == '-')
+			{
+				CharToBSTR(&tempBSTR, Buffer);
+				m_pITMGBaseAttribute->put_Value(tempBSTR);
+				//Create unformatted number
+				strncpy(NewBuffer, &Buffer[2], 2);
+				strncpy(&NewBuffer[2], &Buffer[5], 3);  
+				NewBuffer[5] = Buffer[9];
+				NewBuffer[6] = '\0';
+				CharToBSTR(&tempBSTR, NewBuffer);
+				put_UnFormattedValue(tempBSTR);
+			}
+			else
+			{
+
+				if (strlen(Buffer) == 8)
+				{
+					strncpy(NewBuffer,&Buffer[2], 6);
+					NewBuffer[6] = '\0';
+					strcpy(Buffer, NewBuffer);
+				}
+				CharToBSTR(&tempBSTR,Buffer);
+				put_UnFormattedValue(tempBSTR);
+
+				strncpy(NewBuffer, Buffer, 5);
+				NewBuffer[5] = '-';
+				NewBuffer[6] = Buffer[5];
+				NewBuffer[7] = '\0';
+				CharToBSTR(&tempBSTR, NewBuffer);
+				m_pITMGBaseAttribute->put_Value(tempBSTR);
+			}
+		
+			put_IsValid(TRUE);
+		}
+		else
+		{
+			strcat(FirstDigits, CheckDigit);
+			if (AddCaret)
+				strcat(FirstDigits, "^");
+
+			CharToBSTR(&tempBSTR, FirstDigits);
+			put_UnFormattedValue(tempBSTR);
+			if (FirstDigits[strlen(FirstDigits)-1] == '^')
+			{
+				FirstDigits[strlen(FirstDigits)-1] = '\0';
+			}
+
+			if (strlen(FirstDigits) == 8)
+			{
+				strncpy(Buffer, FirstDigits, 4);
+				Buffer[4] = ',';
+				strncpy(&Buffer[5], &FirstDigits[4], 3);
+				Buffer[8] = '-';
+				Buffer[9] = FirstDigits[7];
+				Buffer[10] = '\0';
+			}
+			else
+			{
+				strcpy(Buffer, FirstDigits);
+			}
+			CharToBSTR(&tempBSTR, Buffer);
+			m_pITMGBaseAttribute->put_Value(tempBSTR);
+
+			// the data is valid
+			put_IsValid(TRUE);
+		}
+	}
+	else
+	{
+		put_IsValid(FALSE);
+	}
+	SysFreeString(tempBSTR);
+	SysFreeString(statusMessage);
+	return S_OK;
+}
+
+
+
+STDMETHODIMP TestNumber::get_Value(BSTR * pVal)
+{
+	return m_pITMGBaseAttribute->get_Value(pVal);	
+}
+
+STDMETHODIMP TestNumber::put_Value(BSTR newVal)
+{
+	HRESULT hr = S_OK;
+	BOOL AutoValidate;	
+
+	put_IsValid(FALSE);
+	get_AutoValidate(&AutoValidate);
+
+	if (AutoValidate)
+	{
+		short Status;
+		BSTR TempCN = SysAllocString(L"");	
+		BSTR TempUnFormattedCN= SysAllocString(L"");
+		get_Value(&TempCN);	
+		get_UnFormattedValue(&TempUnFormattedCN);
+
+		if (newVal == NULL)
+			hr = put_UnFormattedValue(L"");
+		else
+			hr = put_UnFormattedValue(newVal);
+		if (SUCCEEDED(hr))
+		{
+			hr = Validate(&Status);
+			if (Status != MC_OK)
+			{
+				hr = m_pITMGBaseAttribute->put_Value(L"");
+				if (SUCCEEDED(hr))
+				{
+				if (newVal == NULL)
+					hr = put_UnFormattedValue(L"");
+				else
+					hr = put_UnFormattedValue(newVal);
+				}
+			}
+
+			
+		}
+
+	
+		SysFreeString(TempCN);
+		SysFreeString(TempUnFormattedCN);
+	}
+	else
+	{
+		hr = m_pITMGBaseAttribute->put_Value(L"");
+		if (SUCCEEDED(hr))
+		{
+			if (newVal == NULL)
+				hr = put_UnFormattedValue(L"");
+			else
+				hr = put_UnFormattedValue(newVal);
+		}
+	}
+
+	return S_OK;
+}
+
+
+STDMETHODIMP TestNumber::get_Name(BSTR * pVal)
+{
+	return m_pITMGBaseAttribute-> get_Name(pVal);
+	
+}
+
+
+STDMETHODIMP TestNumber::put_Name(BSTR newVal)
+{
+	return m_pITMGBaseAttribute-> put_Name(newVal);
+}
+
+
+STDMETHODIMP TestNumber::get_UnFormattedValue(BSTR * pVal)
+{	
+	return m_pITMGBaseAttribute->get_UnFormattedValue(pVal);
+}
+
+STDMETHODIMP TestNumber::put_UnFormattedValue(BSTR newVal)
+{
+	char temp[20];
+	long rc = 0;
+	BSTRToChar(temp, newVal);
+	BSTR myBSTR = SysAllocString(L"");
+	CharToBSTR(&myBSTR, _strupr(temp));
+	rc = m_pITMGBaseAttribute->put_UnFormattedValue(myBSTR);
+	//return m_pITMGBaseAttribute->put_UnFormattedValue(newVal);
+	return rc;
+}
+
+
+STDMETHODIMP TestNumber::get_IsRequired(BOOL * pVal)
+{
+	return m_pITMGBaseAttribute->get_IsRequired(pVal);
+}
+
+
+
+STDMETHODIMP TestNumber::put_IsRequired(BOOL newVal)
+{
+	short IsValid;
+
+	HRESULT hr=m_pITMGBaseAttribute->put_IsRequired(newVal);
+
+	if (SUCCEEDED(hr))
+	{
+		hr = Validate(&IsValid);
+	}
+
+	return hr;		
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::get_AutoValidate(BOOL * pVal)
+{
+	return m_pITMGBaseAttribute->get_AutoValidate(pVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::put_AutoValidate(BOOL newVal)
+{
+	return m_pITMGBaseAttribute->put_AutoValidate(newVal);
+	
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::get_IsValid(BOOL * pVal)
+{
+	return m_pITMGBaseAttribute->get_IsValid(pVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::put_IsValid(BOOL newVal)
+{
+	return m_pITMGBaseAttribute->put_IsValid(newVal);
+	
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::get_MaxLength(short * pVal)
+{
+	return m_pITMGBaseAttribute->get_MaxLength(pVal);
+	
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::put_MaxLength(short newVal)
+{
+	return m_pITMGBaseAttribute->put_MaxLength(newVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::get_Language(short * pVal)
+{
+	return m_pITMGBaseAttribute->get_Language(pVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::put_Language(short newVal)
+{
+	return m_pITMGBaseAttribute->put_Language(newVal);
+}
+
+
+STDMETHODIMP TestNumber::get_StatusMessage(BSTR * pVal)
+{
+	return m_pITMGBaseAttribute->get_StatusMessage(pVal);		
+}
+
+STDMETHODIMP TestNumber::put_StatusMessage(BSTR newVal)
+{
+	return m_pITMGBaseAttribute->put_StatusMessage(newVal);	
+}
+
+
+STDMETHODIMP TestNumber::get_IsCheckDigitRequired(BOOL * pVal)
+{
+
+	
+	// Make sure argument is not NULL.l
+	if (pVal == NULL)
+		{
+		return E_INVALIDARG;
+		}
+
+	*pVal = m_IsCheckDigitRequired;
+
+	return S_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::put_IsCheckDigitRequired(BOOL newVal)
+{
+	if (newVal)
+		m_IsCheckDigitRequired = TRUE;
+	else
+		m_IsCheckDigitRequired = FALSE;
+
+	return S_OK;
+}
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::GetClassID (CLSID *pClassID)
+{
+	if ( pClassID ==NULL)
+		return E_INVALIDARG;
+	*pClassID = GetObjectCLSID();
+	return S_OK;		
+
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+
+STDMETHODIMP TestNumber::IsDirty(void)
+{
+//	return m_pITMGBaseAttribute->IsDirty();
+	BOOL IsDirty;
+	m_pITMGBaseAttribute->get_IsDirty(& IsDirty);
+	return (IsDirty) ? S_OK : S_FALSE;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::IsDirtyNG(void)
+{
+//	return m_pITMGBaseAttribute->IsDirty();
+	BOOL IsDirty;
+	m_pITMGBaseAttribute->get_IsDirty(& IsDirty);
+	return (IsDirty) ? S_OK : S_FALSE;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::Load(LPSTREAM pStm)
+{
+	return m_pITMGBaseAttribute->Load(pStm);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::Save(LPSTREAM pStm, BOOL fClearDirty)
+{
+	return m_pITMGBaseAttribute->Save(pStm, fClearDirty);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::GetSizeMax(ULARGE_INTEGER FAR* Size)
+{
+	return m_pITMGBaseAttribute->GetSizeMax(Size);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::InitNew()
+{
+	return m_pITMGBaseAttribute->InitNew();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::get_ParentBusinessObject(ITMGBase* * pVal)
+{
+	return m_pITMGBaseAttribute->get_ParentBusinessObject(pVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::put_ParentBusinessObject(ITMGBase* newVal)
+{
+	return m_pITMGBaseAttribute->put_ParentBusinessObject(newVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::get_IsDirty(BOOL * pVal)
+{
+	return m_pITMGBaseAttribute->get_IsDirty(pVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::put_IsDirty(BOOL newVal)
+{
+	return m_pITMGBaseAttribute->put_IsDirty(newVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::get_DataStorageArea(BSTR *  pVal)
+{
+	return m_pITMGBaseAttribute->get_DataStorageArea(pVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::put_DataStorageArea(BSTR newVal)
+{
+	return m_pITMGBaseAttribute->put_DataStorageArea(newVal);
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::ClearData()
+{
+	return m_pITMGBaseAttribute->ClearData();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::Backup()
+{
+	return m_pITMGBaseAttribute->Backup();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::Restore()
+{
+	return m_pITMGBaseAttribute->Restore();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+
+STDMETHODIMP TestNumber::Copy(ITMGBase * AnotherObject)
+{
+	HRESULT hr;
+	CComPtr <ITestNumber>	pTempNumber;
+	//
+	if (AnotherObject!=NULL)
+	{
+		hr= AnotherObject->QueryInterface(IID_ITestNumber, ( void ** ) & pTempNumber);
+	}
+	else
+	{
+		return E_INVALIDARG;
+	}
+	//
+	if (SUCCEEDED (hr))		
+	{
+		pTempNumber->put_IsCheckDigitRequired (m_IsCheckDigitRequired);
+		pTempNumber->put_AllowAssetBuilder (m_AllowAssetBuilder);
+		//
+		return m_pITMGBaseAttribute->Copy ( AnotherObject );
+	}
+	else
+	{
+		return E_INVALIDARG;
+	}
+	//
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+/////////////////////////////////////////////////////////////////////////////
+//
+
+
+STDMETHODIMP TestNumber::get_IsApplicable(BOOL * pVal)
+{
+	return m_pITMGBaseAttribute->get_IsApplicable(pVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::put_IsApplicable(BOOL newVal)
+{
+	return m_pITMGBaseAttribute->put_IsApplicable(newVal);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+
+STDMETHODIMP TestNumber::get_AllowAssetBuilder(BOOL * pVal)
+{
+	// Make sure argument is not NULL.l
+	if (pVal == NULL)
+		{
+		return E_INVALIDARG;
+		}
+
+	*pVal = m_AllowAssetBuilder;
+
+	return S_OK;
+}
+
+STDMETHODIMP TestNumber::put_AllowAssetBuilder(BOOL newVal)
+{
+	if (newVal)
+		m_AllowAssetBuilder = TRUE;
+	else
+		m_AllowAssetBuilder = FALSE;
+	return S_OK;
+}
+HRESULT STDMETHODCALLTYPE TestNumber::Activate(void)
+{
+	HRESULT hr;
+	if (m_pITMGBaseAttribute == NULL)
+	{
+			hr= CoCreateInstance( 
+							CLSID_TMGBaseAttribute,
+							NULL,		// outer 
+							CLSCTX_ALL,
+							IID_ITMGBaseAttribute,
+							(void **)&m_pITMGBaseAttribute);
+			return hr; 
+	}
+
+
+
+	return S_OK;
+}
+
+void STDMETHODCALLTYPE TestNumber::Deactivate( void){
+}
+
+BOOL STDMETHODCALLTYPE TestNumber::CanBePooled( void){
+	return FALSE;
+}
