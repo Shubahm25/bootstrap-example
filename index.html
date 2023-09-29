@@ -1,188 +1,79 @@
-<!DOCTYPE html>
-<html>
+export class SpinnerService {
 
-<head>
-  <link rel="stylesheet" href="background_styles.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-  <title>Custom Checkbox</title>
-  <style>
-    * {
-    box-sizing: border-box;
+    constructor() {
+        this.spinnerCache = new Set();
+    }
+    
+    _register(spinner) {
+        this.spinnerCache.add(spinner);
+    }
+    
+    _unregister(spinnerToRemove) {
+        this.spinnerCache.forEach(spinner => {
+            this.spinnerCache.delete(spinnerToRemove);
+        });
+    }
+
+    show() {
+        this.spinnerCache.forEach(spinner => {
+            spinner.show = true;
+        });
+    }
+    
+    hide() {
+        this.spinnerCache.forEach(spinner => {
+            spinner.show = false;
+        });
+    }
+
+}    
+
+const spinnerService = new SpinnerService();
+export { spinnerService }
+
+
+
+import React, { Component } from 'react';
+import { spinnerService } from '../../Service/SpinnerService';
+
+export class Spinner extends Component {
+	constructor(props, context) {
+
+		super(props, context);
+
+		this.state = {
+			show: this.props.hasOwnProperty('show') ? true : false
+		};
+
+		if (this.props.hasOwnProperty('spinnerService')) {
+			this.spinnerService = this.props.spinnerService;
+		} else {
+			this.spinnerService = spinnerService;
+		}
+
+		this.spinnerService._register(this);
+	}
+
+	componentWillUnmount() {
+		this.spinnerService._unregister(this);
+	}
+
+	get show() {
+		return this.state.show;
+	}
+
+	set show(show) {
+		this.setState({ show });
+	}
+
+	render() {
+		if (this.state.show) {
+			return (
+				<div className='cover-spin' className="cover-spin" />
+			)
+		}
+		return (<div></div>);
+	}
 }
 
-.checkbox-container {
-    display: flex;
-    align-items: center;
-}
-
-.checkbox-container label {
-    cursor: pointer;
-    display: flex;
-}
-
-.checkbox-container input[type='checkbox'] {
-    cursor: pointer;
-    opacity: 0;
-    position: absolute;
-}
-
-label::before{
-  font-size: 16px;
-}
-
-.checkbox-container label::before {
-    content: '';
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    margin-right: .5em;
-    border: 1px solid #5B6062;
-}
-
-
-
-
-
-
-.checkbox-container input[type='checkbox']:checked + label::before {
-    content: '\f00c';
-    background-color: #00588B;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: white;
-  font-family:fontawesome;
-  border: 1px solid #5B6062 !important;
-}
-
-
-
-.checkbox-container .checkbox-error::before  {
-    content: '';
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    margin-right: .5em;
-    border: 1px solid #9E1A30 !important ;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* Background Styles Only */
-
-@import url('https://fonts.googleapis.com/css?family=Raleway');
-
-* {
-    font-family: Raleway;
-}
-
-
-
-html {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: #DFDFDF;
-}
-
-.side-links {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-}
-
-.side-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  margin-bottom: 10px;
-  color: white;
-  width: 180px;
-  padding: 10px 0;
-  border-radius: 10px;
-}
-.checkbox-container label{
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 24px;
-  color: #202223;
-}
-
-.side-link-youtube {
-  background-color: red;
-}
-
-.side-link-twitter {
-  background-color: #1DA1F2;
-}
-
-.side-link-github {
-  background-color: #6e5494;
-}
-
-.side-link-text {
-  margin-left: 10px;
-  font-size: 18px;
-}
-
-.side-link-icon {
-  color: white;
-  font-size: 30px;
-}
-  </style>
-</head>
-
-<body>
-  <div class="checkbox-container">
-    <input type="checkbox" id="cb1" disabled checked>
-    <label for="cb1">Checkbox 1</label>
-  </div>
-  <br>
-  <div class="checkbox-container">
-    <input type="checkbox" id="cb2" disabled>
-    <label for="cb2 "><span style="font-size: 16px;">Checkbox 2</span></label>
-  </div>
-  <br>
-  <div class="checkbox-container">
-    <input type="checkbox" id="cb3">
-    <label for="cb3">Yes, the information is correct</label>
-  </div>
-  <br>
-  <div class="checkbox-container">
-    <input type="checkbox" id="cb4">
-    <label for="cb4" class="">Checkbox 4</label>
-  </div>
-
-
-  <!-- Side Links Only -->
-  <div class="side-links">
-    <a href="https://youtu.be/YyLzwR-iXtI" target="_blank" class="side-link side-link-youtube">
-      <i class="fab fa-youtube-square side-link-icon"></i>
-      <span class="side-link-text">View Tutorial</span>
-    </a>
-    <a href="https://github.com/WebDevSimplified" target="_blank" class="side-link side-link-github side-link-icon">
-      <i class="fab fa-github-square"></i>
-      <span class="side-link-text">View GitHub</span>
-    </a>
-    <a href="https://twitter.com/DevSimplified" target="_blank" class="side-link side-link-twitter">
-      <i class="fab fa-twitter-square side-link-icon"></i>
-      <span class="side-link-text">View Twitter</span>
-    </a>
-  </div>
-</body>
-
-</html>
+export default Spinner;
