@@ -1,27 +1,13 @@
-import React, { createContext, useState } from "react";
-import { useContext } from "react";
+import { useSpinner } from './SpinnerContext';
 
-const SpinnerContext = createContext();
-
-export const useSpinner = () => {
-    return useContext(SpinnerContext);
-}
-
-export const SpinnerProvider = ({ children }) => {
-
-    const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState(false);
-    const show = (customMessage = "Please Wait") => {
-        setMessage(customMessage);
-        setLoading(true);
-    }
-    const hide = () => setLoading(false);
-
-    return (
-        <SpinnerContext.Provider value={{ loading, message, show, hide }}>
-            {children}
-        </SpinnerContext.Provider>
-    )
-
-
-}
+export const setupMockUseSpinner = (showMock, hideMock) => {
+  // Mock the useSpinner hook to return the provided mock functions
+  jest.mock('./SpinnerContext', () => ({
+    __esModule: true,
+    useSpinner: () => ({
+      show: showMock,
+      hide: hideMock,
+      message: '',
+    }),
+  }));
+};
