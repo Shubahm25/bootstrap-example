@@ -1,46 +1,16 @@
-import React from 'react';
-import { render, waitFor } from '@testing-library/react';
-import SpinnerDemoComponent from './SpinnerDemoComponent';
-import { SpinnerProvider } from './SpinnerContext';
-import axios from 'axios';
+import React, { createContext, useState } from "react";
+import * as Constants from './constants/Constants'
 
-// Mock useSpinner hook
-jest.mock('./SpinnerContext', () => ({
-  __esModule: true,
-  useSpinner: jest.fn(),
-}));
+export const I18nContext = createContext({
+    language: Constants.BLANK,
+    setLanguage: () => { },
+})
+export const I18nProvider = ({ children }) => {
+    const [language, setLanguage] = useState(Constants.LANG_E);
+    return (
+        <I18nContext.Provider value={{ language, setLanguage }}>
+            {children}
+        </I18nContext.Provider>
+    )
 
-// Mock axios get
-jest.mock('axios');
-
-describe('SpinnerDemoComponent', () => {
-  it('should display data from API', async () => {
-    // Mock data for the API response
-    const responseData = [{ id: 1, title: 'Post 1' }, { id: 2, title: 'Post 2' }];
-    const response = { data: responseData };
-    axios.get.mockResolvedValue(response);
-
-    // Mock useSpinner hook to return empty message and hide spinner
-    const showMock = jest.fn();
-    const hideMock = jest.fn();
-    useSpinner.mockReturnValue({
-      show: showMock,
-      hide: hideMock,
-      message: '',
-    });
-
-    const { getByText } = render(
-      <SpinnerProvider>
-        <SpinnerDemoComponent />
-      </SpinnerProvider>
-    );
-
-    // Wait for the data to be displayed
-    await waitFor(() => {
-      const data1 = getByText('Post 1');
-      const data2 = getByText('Post 2');
-      expect(data1).toBeInTheDocument();
-      expect(data2).toBeInTheDocument();
-    });
-  });
-});
+}
