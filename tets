@@ -1,247 +1,27 @@
-import Select from "../UI/Select";
-import HelpLink from "../Help/HelpLink";
-import React, { Fragment, useEffect, useState, useContext } from "react";
-import { apiService } from "../../service/ApiService";
-import * as Constants from '../../constants/Constants';
-import ShowError from "../UI/ShowError";
-import DatePicker from "../DatePicker/DatePicker";
-import '../../styles/css/viewReport.css'
-import Title from "../Title/Title";
-import { I18nContext } from "../../I18nContext";
-import { util } from "../../util/Util";
-import { Breadcrumbs, Button, Radio } from '@abc/ui-components-react';
-import '../../styles/css/breadcrumb.css'
-import * as Routes from '../../constants/Routes'
-import '../../styles/css/button.css'
-import '../../styles/css/radioButton.css'
-import { useSpinner } from "../../SpinnerContext";
-import { useNavigate } from "react-router-dom";
+import React, { createContext, useState } from "react";
+import { useContext } from "react";
 
-// this component is used to show view report pdf
-function ViewReport() {
-    const [bankAccounts, setBankAccounts] = useState([]);
-    const [groupErrors, setGroupErros] = useState([]);
-    const [fieldErrors, setFieldErrors] = useState([]);
-    const [formdata, setFormdata] = useState({
-        dateOption: Constants.BLANK,
-        selectedBank: Constants.BLANK,
-        date: Constants.BLANK
-    });
+const SpinnerContext = createContext();
 
-    const { language } = useContext(I18nContext);
-    const navigate = useNavigate();
-    const languageResource = util.getLanguageResource(language);
-    const spinner = useSpinner();
-    const breadcumbItems = [{ id: Constants.ADVSISOR_REMITTANCE_ID, label: languageResource.advisor_remittance_breadcumb_title, href: Routes.getHomeRoute(language) },
-    { id: Constants.VIEW_REPORT_ID, label: languageResource.view_reports_breadcumb_title }]
-
-
-    // make an api call to load bank account details
-    const loadBankAccounts = () => {
-        spinner.show();
-        apiService.loadBankAccounts().then(resp => {
-            spinner.hide();
-            if (resp.hasError) {
-                navigate(Routes.getErrorPageRoute(language), { state: resp.data.message, replace: true })
-                return;
-            }
-            setBankAccounts(resp.data.data);
-        });
-    }
-
-    // make an api call to get view details report
-    const getReport = () => {
-        let data = {
-            bankId: formdata.selectedBank,
-            dateString: formdata.date
-        }
-        spinner.show();
-        apiService.viewReport(data).then(resp => {
-            spinner.hide();
-            if (resp.hasError) {
-                navigate(Routes.getErrorPageRoute(language), { state: resp.data.message, replace: true })
-                return;
-            }
-            showReport(resp.data);
-        });
-    }
-
-    useEffect(() => {
-        loadBankAccounts();
-    }, []);
-
-    // set date option when any radio button is checked
-    const setDateOption = (event) => {
-        setFormdata({ ...formdata, dateOption: event.target.value });
-        setGroupErros([]);
-    }
-
-    //make bank account option
-    const makeOptions = () => {
-        let options = [{
-            value: Constants.MINUS_ONE,
-            label: languageResource.detail_reports_screen_specification_field_4
-        }];
-        if (bankAccounts) {
-            for (let i in bankAccounts) {
-                const account = bankAccounts[i];
-                options.push({
-                    value: account.BankId,
-                    label: account.BankName
-                });
-            }
-        }
-        return options;
-    }
-
-    // validate date option is selected or not
-    const validateDateOption = () => {
-        let isValid = true;
-        if (formdata.dateOption == Constants.BLANK) {
-            groupErrors.push({ msg: languageResource.detail_reports_error_1 })
-            setGroupErros([...groupErrors]);
-            isValid = false;
-        }
-        return isValid;
-    }
-
-    // validate custom date input value
-    const validateCustomDate = () => {
-        let isValid = true;
-        if (formdata.dateOption == Constants.INT_2 && (formdata.date == Constants.BLANK || !Constants.DATE_PATTERN.test(formdata.date))) {
-            setFieldErrors([{ msg: languageResource.detail_reports_error_2 }]);
-            isValid = false;
-        }
-        return isValid;
-    }
-
-    // this method is call when view report button is clicked
-    const viewReport = () => {
-        if (validateDateOption() && validateCustomDate()) {
-            getReport();
-        }
-    }
-
-    //set custom date from date picker
-    const setCustomDate = (date) => {
-        setFormdata({ ...formdata, date });
-        setFieldErrors([]);
-    }
-
-    //set bank account id from date picker
-    const setBankAccountId = (event) => {
-        setFormdata({ ...formdata, selectedBank: event.target.value });
-        setFieldErrors([]);
-    }
-
-    /**
-     * this method is used to show the pdf, 
-     * here data is base64 encoded string
-     * @param {*} data 
-     */
-    const showReport = (data) => {
-        if (data) {
-            let pdfWindow = window.open("AR-Report", Constants.BLANK, Constants.REPORT_DIMENSIONS);
-            pdfWindow.document.write(
-                "<iframe width='100%' height='100%' src='data:application/pdf;base64, " +
-                data + "'></iframe>"
-            );
-        }
-    }
-
-    return (
-        <Fragment>
-            <Breadcrumbs
-                items={breadcumbItems}
-            />
-            <Title />
-            <div className="view-report-main margin-left-15 margin-top-25">
-                <span className="view-report-header">{languageResource.detail_reports_screen_specification_field_1}</span>
-                <div className="margin-top-15">
-                    <span className="view-report-desc">
-                        {languageResource.detail_reports_screen_specification_field_2}
-                        <b>{languageResource.detail_reports_screen_specification_field_2_1}</b>
-                        {languageResource.detail_reports_screen_specification_field_2_2}
-                    </span>
-                </div>
-                <div className="col-xl-11 margin-top-15">
-                    <div className="col-xl-5 view-report-select-lbl1">{languageResource.detail_reports_screen_specification_field_3}</div>
-                    <div className="col-xl-7"><Select options={makeOptions()} className="width-485 height-48 margin-top-5" onChange={setBankAccountId} /></div>
-                    {groupErrors.length > 0 && <div className="margin-top-30 margin-bottom-30">
-                        <ShowError groupErrors={groupErrors} className="col-xl-5" />
-                    </div>}
-                    <div className="col-xl-6 margin-top-15 view-report-select-lbl2">{languageResource.detail_reports_screen_specification_field_5}</div>
-                    <div className="col-xl-7 margin-top-5 margin-left-3">
-                        {groupErrors.length > 0 && formdata.dateOption == Constants.BLANK ?
-                            <div>
-                                <Radio
-                                    key="0"
-                                    id="dateOption1"
-                                    inline
-                                    label={languageResource.detail_reports_screen_specification_field_6}
-                                    name="dateOption"
-                                    value={Constants.INT_1}
-                                    onChange={setDateOption}
-                                    isInvalid
-
-                                />
-                                <Radio
-                                    key="1"
-                                    id="dateOption2"
-                                    inline
-                                    label={languageResource.detail_reports_screen_specification_field_7}
-                                    name="dateOption"
-                                    value={Constants.INT_2}
-                                    onChange={setDateOption}
-                                    isInvalid
-                                />
-                            </div>
-                            :
-                            <div>
-                                <Radio
-                                    key="0"
-                                    id="dateOption1"
-                                    inline
-                                    label={languageResource.detail_reports_screen_specification_field_6}
-                                    name="dateOption"
-                                    value={Constants.INT_1}
-                                    onChange={setDateOption}
-
-
-                                />
-                                <Radio
-                                    key="1"
-                                    id="dateOption2"
-                                    inline
-                                    label={languageResource.detail_reports_screen_specification_field_7}
-                                    name="dateOption"
-                                    value={Constants.INT_2}
-                                    onChange={setDateOption}
-                                />
-                            </div>
-                        }
-                    </div>
-                    {formdata.dateOption == Constants.INT_2 && <Fragment>
-                        <div className="margin-top-15 view-report-select-lbl1">{languageResource.detail_reports_screen_specification_field_7}</div>
-                        <DatePicker className={`width-300 height-48 date-picker-box ` + (fieldErrors.length > 0 ? "input-box-error-border" : "")}
-                            onChange={setCustomDate}
-                        />
-                        {fieldErrors.length > 0 && <ShowError fieldsError={fieldErrors} />}
-                    </Fragment>
-                    }
-                    <div className="col-xl-3 margin-top-20">
-                        <Button variant="primary" className="view-report-btn" onClick={viewReport}>
-                            {languageResource.detail_reports_screen_specification_field_9}
-                        </Button>
-                    </div>
-                </div>
-                <div className="mb-5 margin-top-30 width-273 height-26">
-                    <HelpLink helpScreenKey="viewReport
-                "/>
-                </div>
-            </div>
-        </Fragment>
-    );
+export const useSpinner = () => {
+    return useContext(SpinnerContext);
 }
 
-export default ViewReport
+export const SpinnerProvider = ({ children }) => {
+
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState(false);
+    const show = (customMessage = "Please Wait") => {
+        setMessage(customMessage);
+        setLoading(true);
+    }
+    const hide = () => setLoading(false);
+
+    return (
+        <SpinnerContext.Provider value={{ loading, message, show, hide }}>
+            {children}
+        </SpinnerContext.Provider>
+    )
+
+
+}
