@@ -1,40 +1,46 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { render, waitFor } from '@testing-library/react';
+import SpinnerDemoComponent from './SpinnerDemoComponent';
+import { SpinnerProvider } from './SpinnerContext';
 import axios from 'axios';
-import { useSpinner } from './SpinnerContext';
 
-const SpinnerDemoComponent = () => {
-  const { show, hide } = useSpinner();
+// Mock useSpinner hook
+jest.mock('./SpinnerContext', () => ({
+  __esModule: true,
+  useSpinner: jest.fn(),
+}));
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        show('Loading data...');
+// Mock axios get
+jest.mock('axios');
 
-        // Replace this with your actual API endpoint
-        const apiUrl = 'https://jsonplaceholder.typicode.com/posts';
-        
-        const response = await axios.get(apiUrl);
-        const data = response.data;
+describe('SpinnerDemoComponent', () => {
+  it('should display data from API', async () => {
+    // Mock data for the API response
+    const responseData = [{ id: 1, title: 'Post 1' }, { id: 2, title: 'Post 2' }];
+    const response = { data: responseData };
+    axios.get.mockResolvedValue(response);
 
-        console.log('API response:', data);
+    // Mock useSpinner hook to return empty message and hide spinner
+    const showMock = jest.fn();
+    const hideMock = jest.fn();
+    useSpinner.mockReturnValue({
+      show: showMock,
+      hide: hideMock,
+      message: '',
+    });
 
-        // Hide the spinner when the response is received
-        hide();
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        // Handle error and hide the spinner
-        hide();
-      }
-    };
+    const { getByText } = render(
+      <SpinnerProvider>
+        <SpinnerDemoComponent />
+      </SpinnerProvider>
+    );
 
-    fetchData();
-  }, [show, hide]);
-
-  return (
-    <div>
-      <h2>Data will load shortly...</h2>
-    </div>
-  );
-};
-
-export default SpinnerDemoComponent;
+    // Wait for the data to be displayed
+    await waitFor(() => {
+      const data1 = getByText('Post 1');
+      const data2 = getByText('Post 2');
+      expect(data1).toBeInTheDocument();
+      expect(data2).toBeInTheDocument();
+    });
+  });
+});
