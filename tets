@@ -1,16 +1,145 @@
-import React, { createContext, useState } from "react";
-import * as Constants from './constants/Constants'
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 
-export const I18nContext = createContext({
-    language: Constants.BLANK,
-    setLanguage: () => { },
-})
-export const I18nProvider = ({ children }) => {
-    const [language, setLanguage] = useState(Constants.LANG_E);
-    return (
-        <I18nContext.Provider value={{ language, setLanguage }}>
-            {children}
-        </I18nContext.Provider>
-    )
+namespace IT.Retail.ContractNumberValidation
+{
+    public class ContractNumberValidator
+    {
+        public enum AlphabetValues
+        {            
+            A = 10,
+            B = 11,
+            C = 12,
+            D = 13,
+            E = 14,
+            F = 15,
+            G = 16,
+            H = 17,
+            I = 18,
+            J = 19,
+            K = 20,
+            L = 21,
+            M = 22,
+            N = 23,
+            O = 24,
+            P = 25,
+            Q = 26,
+            R = 27,
+            S = 28,
+            T = 29,
+            U = 30,
+            V = 31,
+            W = 32,
+            X = 33,
+            Y = 34,
+            Z = 35
+        }
 
+        public bool  ValidateContract(string contractNumber)
+        {
+            /*
+             * Policy # C365748-2   (where C= 12) 
+                We Sum the digits in the Odd positions and Multiple by 2.  
+                We then Sum the Even position digits and add to the Previous total.  
+                Hence C365748 would be 2*(12+6+7+8) = 66 PLUS 12 = 3+5+4 for a Grand total of 78. 
+                In this example,  '78' MOD 10 is 8 and since 8 > 0, 10 - 8 is 2. 
+                The check digit for C356748 is 2.
+             * */
+
+            // unformat first
+            contractNumber = UnFormatContractNumber(contractNumber);
+
+            string checkDigit = contractNumber.ToCharArray()[7].ToString();
+            string checkDigitComputed = "";
+
+            contractNumber = contractNumber.Substring(0, 7);
+            char[] sequence = contractNumber.ToCharArray();
+
+            int sumEvens = 0, sumOdds = 0, grandTotal = 0, modValue = -1;
+            int itemIndex = 1;
+            
+
+            foreach (char c in sequence)
+            {
+                int result = -1;
+                string sCharValue = "";
+                int currentCharValue = -1;                
+
+                if (itemIndex == 1)
+                {
+                    if (!int.TryParse(c.ToString(), out result))
+                    {
+                        sCharValue = ((int)((AlphabetValues)Enum.Parse(typeof(AlphabetValues), c.ToString(), true))).ToString();                       
+                        currentCharValue = ((int)((AlphabetValues)Enum.Parse(typeof(AlphabetValues), c.ToString(), true)));
+                    }
+                    else
+                        currentCharValue = result;
+                    
+                    sumOdds = sumOdds + currentCharValue;
+                }
+                else if (itemIndex % 2 == 0)
+                {
+                    if (!int.TryParse(c.ToString(), out result))
+                    {
+                        sCharValue = ((int)((AlphabetValues)Enum.Parse(typeof(AlphabetValues), c.ToString(), true))).ToString();                        
+                        currentCharValue = ((int)((AlphabetValues)Enum.Parse(typeof(AlphabetValues), c.ToString(), true)));
+                    }
+                    else
+                        currentCharValue = result;
+                    
+                    
+                    sumEvens = sumEvens + currentCharValue;
+                }
+                else
+                {
+
+                    if (!int.TryParse(c.ToString(), out result))
+                    {
+                        sCharValue = ((int)((AlphabetValues)Enum.Parse(typeof(AlphabetValues), c.ToString(), true))).ToString();                        
+                        currentCharValue = ((int)((AlphabetValues)Enum.Parse(typeof(AlphabetValues), c.ToString(), true)));
+                    }
+                    else
+                        currentCharValue = result;
+                    sumOdds = sumOdds + currentCharValue;
+                }
+
+                itemIndex += 1;
+            }
+
+            grandTotal = sumEvens  + sumOdds * 2;
+            modValue = grandTotal % 10;
+
+            checkDigitComputed = modValue == 0 ? modValue.ToString() : (10 - modValue).ToString();
+            if (checkDigitComputed == checkDigit)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public String FormatContractNumber(String unformattedContractNumber)
+        {
+            // A formated contract number is of the following form 1234,567-6
+            unformattedContractNumber = unformattedContractNumber.Replace(" ", "").Replace(",", "").Replace("-", "");
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append(unformattedContractNumber.Substring(0, 4));
+            sb.Append(",");
+            sb.Append(unformattedContractNumber.Substring(4, unformattedContractNumber.Length - 5));
+            sb.Append("-");
+            sb.Append(unformattedContractNumber.Substring(unformattedContractNumber.Length - 1));
+
+            return sb.ToString();
+        }
+
+        public String UnFormatContractNumber(String formattedContractNumber)
+        {
+            return formattedContractNumber.Replace(",", "").Replace("-", "");
+        }
+    }
 }
