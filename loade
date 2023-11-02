@@ -1,0 +1,32 @@
+
+import os
+from langchain.document_loaders import TextLoader
+class CustomDirectoryLoader:
+
+
+    def __init__(self, dir_path, **kwargs):
+        self.dir_path = dir_path
+        self.kwargs = kwargs
+
+    def load(self):
+        docs = []
+        extensions = ['.java','.py','.jsp','.cbl','.txt']
+        for root, _, files in os.walk(self.dir_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                _, extension = os.path.splitext(file_path)
+                if extension in extensions:
+                    loader = loader = TextLoader(file_path, **self.kwargs)
+                else:
+                    print(f"Do not process the file: {file_path}")
+                    continue
+                loaded_docs = loader.load()
+                docs.extend(loaded_docs)
+        return docs
+
+
+loader = CustomDirectoryLoader(os.path.join(
+    "C:\practice\langchain\Langchain\Langchain", "java"))
+docs = loader.load()
+
+print(f'{len(docs)}')
