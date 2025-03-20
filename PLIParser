@@ -1,0 +1,131 @@
+// Online Java Compiler
+// Use this editor to write, compile and run your Java code online
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+class Main {
+    public static void main(String[] args) {
+        String inputData = "320            BLK_1238           Constant External,\n" +
+                           "				  1,\n" +
+                           "				  FIXED(3,0),\n" +
+                           "				  FIXED(3,0),\n" +
+                           "				  REFS: 12828,18811\n" + // Multiline references start
+                           "				  17171 188\n"
+                            + // Continuation of references
+                           "321           BLK_1230           Constant External,\n" +
+                           "				  1,\n" +
+                           "				  FIXED(3,0),\n" +
+                           "				  FIXED(3,0),\n" +
+                           "				  REFS: 1000 1001\n" +
+                           "400            XYZ_4567           Another Entry,\n" +
+                           "				  2,\n" +
+                           "				  FIXED(4,1),\n" +
+                           "				  REFS: 2000\n" +
+                           "				  3000 3001"; // Continuation of references
+
+       List<String> parsedData = parseData(inputData);
+        
+        // Print the parsed data
+        for (String data : parsedData) {
+            List<Map<String, Object>> parsedData1 = parseData1(data);
+            for (Map<String, Object> entry : parsedData1) {
+            System.out.println(entry);
+        }
+            
+        }
+       
+    }
+    
+        public static List<String> parseData(String inputData) {
+        List<String> result = new ArrayList<>();
+        BufferedReader reader = new BufferedReader(new StringReader(inputData));
+        StringBuilder currentEntry = new StringBuilder();
+        String line;
+        
+        try {
+            while ((line = reader.readLine()) != null) {
+                line = line.trim(); // Remove leading and trailing whitespace
+                
+                // Check if the line starts with a new identifier (any identifier)
+                if (line.matches("^\\d+\\s+\\S+.*")) {
+                    // If currentEntry is not empty, add it to the result list
+                    if (currentEntry.length() > 0 && !line.matches("^\\d+\\s+\\d+$|^\\d+$")) {
+                        result.add(currentEntry.toString().trim());
+                        currentEntry.setLength(0); // Clear the StringBuilder for the next entry
+                    }
+                }
+                
+                // Append the current line to the current entry
+                currentEntry.append(line).append(" "); // Add a space for separation
+            }
+            
+            // Add the last entry if it exists
+            if (currentEntry.length() > 0) {
+                result.add(currentEntry.toString().trim());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        
+        return result;
+        }
+
+
+
+    public static List<Map<String, Object>> parseData1(String inputData) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        BufferedReader reader = new BufferedReader(new StringReader(inputData));
+        String line;
+        
+        try {
+            while ((line = reader.readLine()) != null) {
+                line = line.trim(); // Remove leading and trailing whitespace
+                
+                // Split the line into parts based on the "REFS:" keyword
+                String[] parts = line.split("REFS:", 2); // Split into two parts: before and after REFS
+                String attributesPart = parts[0].trim(); // The part before REFS
+                String referencesPart = parts.length > 1 ? parts[1].trim() : ""; // The part after REFS
+
+                // Further split the attributes part to get statement and identifier
+                String[] attributeParts = attributesPart.split("\\s+", 3); // Split into 3 parts: statement, identifier, and the rest
+                String statement = attributeParts[0]; // The statement (first part)
+                String identifier = attributeParts[1]; // The identifier (second part)
+
+                // Collect attributes
+                List<String> attributes = new ArrayList<>();
+                if (attributeParts.length > 2) {
+                    String remainingAttributes = attributeParts[2].trim();
+                    String[] attrArray = remainingAttributes.split(" "); // Split by comma
+                    for (String attr : attrArray) {
+                        attributes.add(attr.trim());
+                    }
+                }
+
+                // Collect references
+                List<String> references = new ArrayList<>();
+                if (!referencesPart.isEmpty()) {
+                    String[] refsArray = referencesPart.split(","); // Split by comma
+                    for (String ref : refsArray) {
+                        references.add(ref.trim());
+                    }
+                }
+
+                // Create a map for the current entry
+                Map<String, Object> entry = new HashMap<>();
+                entry.put("identifier", identifier);
+                entry.put("statement", statement);
+                entry.put("attributes", attributes);
+                entry.put("references", references);
+                result.add(entry);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        
+        return result;
+    }
+}
