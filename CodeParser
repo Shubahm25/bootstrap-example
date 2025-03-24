@@ -1,0 +1,470 @@
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.tree.DefaultMutableTreeNode;
+import java.awt.*;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
+
+public class CodeParser extends JFrame {
+
+    private JTable dbFieldsTable;
+    private DefaultTableModel tableModel;
+    private JList<String> allFieldsList;
+    private DefaultListModel<String> allFieldsListModel;
+    private JTextField fieldSearch;
+    private JTree callChainTree;
+
+    public CodeParser() {
+        setTitle("YPPMOOMI");
+        setSize(1200, 700);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new BorderLayout());
+        setResizable(true);
+        try {
+            UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        Color primaryColor = new Color(30, 60, 90);  // Deep Blue
+        Color secondaryColor = new Color(230, 230, 250);  // Light Lavender
+        Color accentColor = new Color(70, 130, 180); // Steel Blue
+        Font titleFont = new Font("Arial", Font.BOLD, 18);
+        Font buttonFont = new Font("Arial", Font.PLAIN, 14);
+        // Title Bar
+        JPanel titleBar = new JPanel(new BorderLayout());
+        titleBar.setBackground(primaryColor);
+        titleBar.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));        JLabel titleLabel = new JLabel("PROGRAM NAME : YPPMOOMI");
+        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setFont(titleFont);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        JTextField moduleSearchField = new JTextField(20);
+        moduleSearchField.setPreferredSize(new Dimension(200, 30));
+        JButton searchButton = new JButton("Search");
+        styleButton(searchButton, buttonFont, accentColor);
+        searchPanel.add(moduleSearchField);
+        searchPanel.add(searchButton);
+
+        JLabel rightLabel = new JLabel("YPPMQCMI");
+        rightLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        rightLabel.setForeground(Color.WHITE);
+        rightLabel.setFont(buttonFont);
+
+        titleBar.add(searchPanel, BorderLayout.WEST);
+        titleBar.add(titleLabel, BorderLayout.CENTER);
+        titleBar.add(rightLabel, BorderLayout.EAST);
+
+        searchButton.addActionListener(e -> {
+            String searchText = moduleSearchField.getText().trim();
+            if (!searchText.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Searching for module: " + searchText,
+                        "Module Search",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+            } else {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Please enter a module name to search.",
+                        "Search Error",
+                        JOptionPane.WARNING_MESSAGE
+                );
+            }
+        });
+
+        // Left Sidebar (Call Chain)
+        JPanel leftSidebar = new JPanel(new BorderLayout());
+        leftSidebar.setPreferredSize(new Dimension(250, getHeight()));
+        leftSidebar.setBackground(secondaryColor);
+
+
+        JLabel callChainTitle = new JLabel("CALL CHAIN");
+        styleLabel(callChainTitle, titleFont, primaryColor);
+         callChainTree = createDynamicCallChainTree();
+        JScrollPane treeScrollPane = new JScrollPane(callChainTree);
+        treeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+        treeScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+
+        leftSidebar.add(callChainTitle, BorderLayout.NORTH);
+        leftSidebar.add(treeScrollPane, BorderLayout.CENTER);
+
+        // Center Section (Main Content)
+        JSplitPane centerSection = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        centerSection.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        centerSection.setResizeWeight(0.4);
+        centerSection.setDividerLocation(300);
+
+        JPanel dbUsedFieldsPanel = new JPanel(new BorderLayout());
+        dbUsedFieldsPanel.setPreferredSize(new Dimension(250, 250));
+        JLabel dbUsedTitle = new JLabel("DB USED FIELDS (WITH DB DETAILS)");
+        styleLabel(dbUsedTitle, titleFont, primaryColor);
+        JButton extractButton = new JButton("Extract DB Fields");
+        styleButton(extractButton, buttonFont, accentColor);
+        dbFieldsTable = createDBFieldsTable();
+        dbUsedFieldsPanel.add(dbUsedTitle, BorderLayout.NORTH);
+        dbUsedFieldsPanel.add(extractButton, BorderLayout.SOUTH);
+        dbUsedFieldsPanel.add(new JScrollPane(dbFieldsTable), BorderLayout.CENTER);
+        extractButton.addActionListener(e -> extractDBFieldsToCSV());
+
+        JPanel dbSummaryPanel = new JPanel(new BorderLayout());
+        JLabel dbSummaryTitle = new JLabel("DB USED SUMMARY");
+        styleLabel(dbSummaryTitle, titleFont, primaryColor);
+        dbSummaryPanel.setPreferredSize(new Dimension(400, 150));
+        JList<String> dbSummaryList = createDBSummaryList();
+        dbSummaryPanel.add(dbSummaryTitle, BorderLayout.NORTH);
+        dbSummaryPanel.add(new JScrollPane(dbSummaryList), BorderLayout.CENTER);
+
+        JSplitPane dbSectionSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, dbUsedFieldsPanel, dbSummaryPanel);
+        //dbSectionSplit.setResizeWeight(0.8);
+        dbSectionSplit.setDividerLocation(250);
+
+        centerSection.setTopComponent(dbSectionSplit);
+        centerSection.setBottomComponent(dbSummaryPanel);
+
+        // Right Sidebar (Fields & Procedures)
+        JSplitPane rightSidebar = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        rightSidebar.setPreferredSize(new Dimension(400, getHeight()));
+        rightSidebar.setDividerLocation(200);
+
+        JPanel allFieldsPanel = new JPanel(new BorderLayout());
+        JLabel allFieldsTitle = new JLabel("ALL USED FIELDS (enter field to look up)");
+        styleLabel(allFieldsTitle, buttonFont, primaryColor);
+
+        fieldSearch = new JTextField("Enter field to look up...");
+        fieldSearch.setPreferredSize(new Dimension(200, 25));
+        allFieldsListModel = createFieldsListModel();
+        allFieldsList = new JList<>(allFieldsListModel);
+        JPanel fieldSearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        fieldSearchPanel.add(fieldSearch);
+
+        JScrollPane fieldsScrollPane = new JScrollPane(allFieldsList);
+        fieldsScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+
+        fieldSearch.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                filterFieldsList();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                filterFieldsList();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                filterFieldsList();
+            }
+        });
+
+        JPanel searchAndListPanel = new JPanel(new BorderLayout());
+        searchAndListPanel.add(fieldSearch, BorderLayout.NORTH);
+        searchAndListPanel.add(fieldsScrollPane, BorderLayout.CENTER);
+        allFieldsPanel.add(allFieldsTitle, BorderLayout.NORTH);
+        allFieldsPanel.add(searchAndListPanel, BorderLayout.CENTER);
+
+        JPanel codeFlowPanel = new JPanel(new BorderLayout());
+        JLabel codeFlowTitle = new JLabel("CODE FLOW");
+        styleLabel(codeFlowTitle, buttonFont, primaryColor);
+        JList<String> proceduresList = createProceduresList();
+        JScrollPane scrollableProcedures = new JScrollPane(proceduresList);
+        scrollableProcedures.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+        scrollableProcedures.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+
+
+        codeFlowPanel.add(codeFlowTitle, BorderLayout.NORTH);
+        codeFlowPanel.add(scrollableProcedures, BorderLayout.CENTER);
+
+        rightSidebar.setLeftComponent(allFieldsPanel);
+        rightSidebar.setRightComponent(codeFlowPanel);
+
+        // Bottom Bar (Status Bar)
+        JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JLabel statusLabel = new JLabel("Data prepared for analysis");
+        bottomBar.add(statusLabel);
+
+        // Adding Components to Main Frame
+        add(titleBar, BorderLayout.NORTH);
+        add(leftSidebar, BorderLayout.WEST);
+        add(centerSection, BorderLayout.CENTER);
+        add(rightSidebar, BorderLayout.EAST);
+        add(bottomBar, BorderLayout.SOUTH);
+    }
+
+    private JTree createDynamicCallChainTree() {
+        DefaultMutableTreeNode root = new DefaultMutableTreeNode("YPPMQCMI");
+        createSubNodes(root, "YPSMQCGD", new String[]{"YPSMQ001", "YPSMQ002"});
+        createSubNodes(root, "YPSUDATE", new String[]{"YPSUD001", "YPSUD002"});
+        createSubNodes(root, "YPSMOCCA", new String[]{"YPSMO001", "YPSMO002"});
+        createSubNodes(root, "YPSUALG1", new String[]{"YPSUA001", "YPSUA002"});
+        createSubNodes(root, "YPSUFDFV", new String[]{"YPSUF001", "YPSUF002"});
+
+        callChainTree = new JTree(root);
+        callChainTree.setRootVisible(true);
+
+        callChainTree.addTreeSelectionListener(e -> {
+            DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) callChainTree.getLastSelectedPathComponent();
+            if (selectedNode != null) {
+                String nodeName = selectedNode.toString();
+                updateDBFieldsTable(nodeName);
+            }
+        });
+
+        return callChainTree;
+    }
+
+    private void createSubNodes(DefaultMutableTreeNode parent, String name, String[] subNodes) {
+        DefaultMutableTreeNode subRoot = new DefaultMutableTreeNode(name);
+        parent.add(subRoot);
+
+        for (String subNode : subNodes) {
+            DefaultMutableTreeNode child = new DefaultMutableTreeNode(subNode);
+            subRoot.add(child);
+            child.add(new DefaultMutableTreeNode(subNode + "A"));
+            child.add(new DefaultMutableTreeNode(subNode + "B"));
+        }
+    }
+
+    private JTable createDBFieldsTable() {
+        String[] columnNames = {"Index", "FIELD", "SEGMENT"};
+        tableModel = new DefaultTableModel(columnNames, 0);
+        return new JTable(tableModel);
+    }
+
+    private void updateDBFieldsTable(String nodeName) {
+        tableModel.setRowCount(0);
+
+        Map<String, Object[][]> dbFieldsMap = new HashMap<>();
+        dbFieldsMap.put("YPSMQ001", new Object[][]{
+                {1, "AC-AGENT", "YPP0016P YPAC"},
+                {2, "AC-MEM", "YPPOD16P YPAC"}
+        });
+        dbFieldsMap.put("YPSUD001", new Object[][]{
+                {1, "BI-FIRST", "YPPOD01P YPBI"},
+                {2, "BI-LAST", "YPPOD02P YPBI"}
+        });
+        dbFieldsMap.put("YPSMO001", new Object[][]{
+                {1, "AM-AGENT", "YPPODIOP YPAM"},
+                {2, "AM-DETAILS", "YPP0010P YPAC"}
+        });
+
+        Object[][] data = dbFieldsMap.getOrDefault(nodeName, new Object[][]{
+                {1, "NO DATA", "N/A"}
+        });
+
+        for (Object[] row : data) {
+            tableModel.addRow(row);
+        }
+    }
+
+    private JList<String> createDBSummaryList() {
+        String[] dbSummary = {"YPP0001P", "YPPOD05P", "YPPOD13P", "YPPODSLP",
+                "YPPOD02P", "YPPOD15P", "YPP0010P", "YPP0016P"};
+        return new JList<>(dbSummary);
+    }
+
+    private DefaultListModel<String> createFieldsListModel() {
+        String[] fields = {
+                "ABEND-DUMP-REQUIRED-FLAG", "ABEND-ENTRY", "ABEND-ENTRY-X",
+                "ABEND-REASON", "ABEND-REASON-CODE", "ABEND-REASON-MESSAGE",
+                "ABEND-REASON-PROGRAM", "ABEND-TABLE", "ABEND-TABLE-ARGUMENT",
+                "ABEND-TABLE-LOAD-FLAG", "ABEND-TABLE-LOAD-NOT-OK", "ABEND-TABLE-NAME",
+                "ABEND-TBL-ARGUMENT", "ABEND-TBL-MESSAGE", "AC-AGENT-ID",
+                "AC-MEM-AGENT-COMMISSION-INFO", "AM-AGENT-FULL-NAME"
+        };
+
+        DefaultListModel<String> model = new DefaultListModel<>();
+        for (String field : fields) {
+            model.addElement(field);
+        }
+        return model;
+    }
+
+    private void filterFieldsList() {
+        String searchText = fieldSearch.getText().trim().toLowerCase();
+        allFieldsListModel.clear();
+
+        String[] fields = {
+                "ABEND-DUMP-REQUIRED-FLAG", "ABEND-ENTRY", "ABEND-ENTRY-X",
+                "ABEND-REASON", "ABEND-REASON-CODE", "ABEND-REASON-MESSAGE",
+                "ABEND-REASON-PROGRAM", "ABEND-TABLE", "ABEND-TABLE-ARGUMENT",
+                "ABEND-TABLE-LOAD-FLAG", "ABEND-TABLE-LOAD-NOT-OK", "ABEND-TABLE-NAME",
+                "ABEND-TBL-ARGUMENT", "ABEND-TBL-MESSAGE", "AC-AGENT-ID",
+                "AC-MEM-AGENT-COMMISSION-INFO", "AM-AGENT-FULL-NAME"
+        };
+
+        for (String field : fields) {
+            if (field.toLowerCase().contains(searchText)) {
+                allFieldsListModel.addElement(field);
+            }
+        }
+    }
+
+    private JList<String> createProceduresList() {
+        String[] procedures = {
+                "A-000-MAINLIN", "A-100-INITIA", "A-120-C",
+                "A-150-VA", "A-160-G", "B-010-START",
+                "B-050-STOP", "C-200-UPDATE", "D-300-DELETE"
+        };
+        return new JList<>(procedures);
+    }
+
+    private JList<String> createSQLProceduresList() {
+        String[] sqlProcedures = {
+                "DSNSQL SEC", "SQL-SKIP", "SQL-INITIAL",
+                "SQL-INIT-END", "A-000-000-MA", "SQL-FETCH",
+                "SQL-COMMIT", "SQL-ROLLBACK", "SQL-UPDATE",
+                "SQL-DELETE"
+        };
+        return new JList<>(sqlProcedures);
+    }
+
+    private void extractDBFieldsToCSV() {
+        // Get the selected module name correctly from the existing tree
+        String selectedModule = getSelectedModuleFromTree();
+
+        // Update the DB fields table only if a module is selected
+        if (selectedModule != null) {
+            updateDBFieldsTable(selectedModule); // Update DB fields
+
+            // ✅ Generate and open CSV after updating the fields
+            String filePath = "db_fields.csv";
+            generateCSVFile(filePath);  // ✅ Generate the CSV file
+            openCSVViewer(filePath);    // ✅ Open the CSV viewer without showing a popup
+        } else {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Please select a module from the Call Chain to extract DB fields.",
+                    "No Module Selected",
+                    JOptionPane.WARNING_MESSAGE
+            );
+        }
+    }
+
+    private String getSelectedModuleFromTree() {
+        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) callChainTree.getLastSelectedPathComponent();
+        if (selectedNode != null) {
+            return selectedNode.toString();
+        }
+        return null; // Return null if no node is selected
+    }
+
+    private void openCSVViewer(String filePath) {
+        JFrame viewerFrame = new JFrame("CSV Viewer - " + filePath);
+        viewerFrame.setSize(600, 400);
+        viewerFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+        JTable csvTable = loadCSVToTable(filePath);
+        JScrollPane scrollPane = new JScrollPane(csvTable);
+
+        JButton downloadButton = new JButton("Download CSV");
+        downloadButton.addActionListener(e -> initiateCSVDownload(filePath));
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(downloadButton, BorderLayout.SOUTH);
+
+        viewerFrame.add(panel);
+        viewerFrame.setVisible(true);
+    }
+
+    private JTable loadCSVToTable(String filePath) {
+        DefaultTableModel csvTableModel = new DefaultTableModel();
+        try (Scanner scanner = new Scanner(new java.io.File(filePath))) {
+            if (scanner.hasNextLine()) {
+                String headerLine = scanner.nextLine();
+                String[] headers = headerLine.split(",");
+                csvTableModel.setColumnIdentifiers(headers);
+            }
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                String[] data = line.split(",");
+                csvTableModel.addRow(data);
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Error loading CSV file: " + e.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+        return new JTable(csvTableModel);
+    }
+
+    private void initiateCSVDownload(String filePath) {
+        JOptionPane processingPopup = new JOptionPane("Generating CSV File...", JOptionPane.INFORMATION_MESSAGE);
+        JDialog dialog = processingPopup.createDialog(this, "Processing");
+        dialog.setModal(false);
+        dialog.setVisible(true);
+
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                Thread.sleep(2000);
+                generateCSVFile(filePath);
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                dialog.dispose();
+                JOptionPane.showMessageDialog(
+                        CodeParser.this,
+                        "CSV file downloaded successfully!\nLocation: " + filePath,
+                        "Download Complete",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+            }
+        };
+        worker.execute();
+    }
+
+    private void generateCSVFile(String filePath) {
+        try (FileWriter writer = new FileWriter(filePath)) {
+            writer.write("Index,FIELD,SEGMENT\n");
+            for (int i = 0; i < tableModel.getRowCount(); i++) {
+                writer.write(
+                        tableModel.getValueAt(i, 0) + "," +
+                                tableModel.getValueAt(i, 1) + "," +
+                                tableModel.getValueAt(i, 2) + "\n"
+                );
+            }
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Error while generating CSV: " + e.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            CodeParser app = new CodeParser();
+            app.setVisible(true);
+        });
+    }
+    private void styleButton(JButton button, Font font, Color bgColor) {
+        button.setFont(font);
+        button.setBackground(bgColor);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(45, 45, 45)),
+                BorderFactory.createEmptyBorder(8, 15, 8, 15)
+        ));
+    }
+
+    private void styleLabel(JLabel label, Font font, Color color) {
+        label.setFont(font);
+        label.setForeground(color);
+        label.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+    }
+}
