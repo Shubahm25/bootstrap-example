@@ -1,0 +1,78 @@
+import java.util.*;
+import java.util.regex.*;
+
+public class DataParser {
+
+    // Pattern to detect the main row (like 26 SUDIPC1 CONSTANT EXTERNAL)
+    private static final Pattern ROW_PATTERN = Pattern.compile("^(\\d{2,})\\s+(\\w+.*)");
+    // Pattern to detect sub-levels (like 2, 3, etc.)
+    private static final Pattern SUB_ROW_PATTERN = Pattern.compile("^\\d+\\s.*");
+
+    public static void main(String[] args) {
+        // Input as a String array
+        String[] inputLines = {
+            "26 SUDIPC1 CONSTANT EXTERNAL",
+            "    ENTRY BYADDR CHARACTER(40) UNALIGNED,",
+            "    BYADDR CHARACTER(8) UNALIGNED,",
+            "    1 BYADDR,",
+            "        2 CHARACTER(8) UNALIGNED,",
+            "        2 FIXED BIN(31,0),",
+            "        2 CHARACTER(8) VARYING UNALIGNED,",
+            "        2 CHARACTER(8) UNALIGNED,",
+            "        2 DIM(1:6) FIXED BIN(31,0),",
+            "    2,",
+            "        3 CHARACTER(3) UNALIGNED,",
+            "        3 CHARACTER(6) UNALIGNED,",
+            "    BYADDR FIXED BIN(31,0),",
+            "    BYADDR FIXED BIN(31,0),",
+            "155 M2VADVD_DET_ADVISOR",
+            "    2 CHARACTER(10) UNALIGNED,",
+            "    2 FIXED BIN(31,0)"
+        };
+
+        // Map to store row data
+        Map<Integer, String> dataMap = new LinkedHashMap<>();
+        StringBuilder currentBlock = new StringBuilder();
+        String currentKey = null;
+
+        for (String line : inputLines) {
+            line = line.trim(); // Remove leading/trailing spaces
+            Matcher matcher = ROW_PATTERN.matcher(line);
+
+            // If we find a main row (e.g., 26 SUDIPC1 ...)
+            if (matcher.find()) {
+                // Save the previous block if any
+                if (currentKey != null) {
+                    dataMap.put(Integer.parseInt(currentKey), currentBlock.toString().trim());
+                }
+
+                // Start a new row block
+                currentKey = matcher.group(1); // Get the row ID (e.g., 26 or 155)
+                currentBlock = new StringBuilder(line); // Start new block with current line
+
+            } else if (currentKey != null) {
+                // If it's a sub-level or indented content, append to the parent row
+                if (SUB_ROW_PATTERN.matcher(line).find() || line.matches("^[\\d,]+.*")) {
+                    currentBlock.append(" ").append(line);
+                }
+            }
+        }
+
+        // Save the last block if it exists
+        if (currentKey != null) {
+            dataMap.put(Integer.parseInt(currentKey), currentBlock.toString().trim());
+        }
+
+        // Generate Java class or print results
+        generateJavaClass(dataMap);
+    }
+
+    // Generates Java classes or prints content dynamically
+    private static void generateJavaClass(Map<Integer, String> dataMap) {
+        for (Map.Entry<Integer, String> entry : dataMap.entrySet()) {
+            System.out.println("Processing row ID: " + entry.getKey());
+            System.out.println("Content: " + entry.getValue());
+            System.out.println("---------------");
+        }
+    }
+}
