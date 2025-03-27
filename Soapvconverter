@@ -1,0 +1,239 @@
+import org.w3c.dom.*;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.File;
+import java.io.FileWriter;
+import java.util.ArrayList;
+import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+public class SoapUIToPostmanFullConverter {
+
+    public static void main(String[] args) {
+        String inputFile = "soapui_project.xml";
+        String outputFile = "postman_collection.json";
+        convertSoapUIToPostman(inputFile, outputFile);
+    }
+
+    public static void convertSoapUIToPostman(String inputFile, String outputFile) {
+        try {
+            File file = new File(inputFile);
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document document = builder.parse(file);
+            document.getDocumentElement().normalize();
+
+            // Get project name
+            String projectName = document.getDocumentElement().getAttribute("name");
+
+            // Create Postman collection structure
+            JSONObject postmanCollection = createPostmanCollection(projectName);
+
+            // Get all test suites
+            NodeList testSuiteList = document.getElementsByTagName("con:testSuite");
+            for (int i = 0; i < testSuiteList.getLength(); i++) {
+                Element testSuite = (Element) testSuiteList.item(i);
+                String suiteName = testSuite.getAttribute("name");
+
+                JSONArray suiteItems = new JSONArray();
+
+                // Get all test cases
+                NodeList testCaseList = testSuite.getElementsByTagName("con:testCase");
+                for (int j = 0; j < testCaseList.getLength(); j++) {
+                    Element testCase = (Element) testCaseList.item(j);
+                    String caseName = testCase.getAttribute("name");
+
+                    JSONArray caseItems = new JSONArray();
+
+                    // Get all test steps
+                    NodeList testStepList = testCase.getElementsByTagName("con:testStep");
+                    for (int k = 0; k < testStepList.getLength(); k++) {
+                        Element testStep = (Element) testStepList.item(k);
+                        String stepName = testStep.getAttribute("name");
+                        String stepType = testStep.getAttribute("type");
+
+                        if ("request".equals(stepType)) {
+                            JSONObject requestItem = createRequestItem(testStep, stepName);
+                            caseItems.put(requestItem);
+                        } else if ("groovy".equals(stepType)) {
+                            String groovyScript = testStep.getElementsByTagName("con:script").item(0).getTextContent();
+                            JSONArray scriptTests = convertGroovyToJS(groovyScript);
+                            JSONObject groovyRequest = createGroovyRequest(stepName, scriptTests);
+                            caseItems.put(groovyRequest);
+                        }
+                    }
+
+                    if (caseItems.length() > 0) {
+                        suiteItems.put(createTestSuiteFolder(caseName, caseItems));
+                    }
+                }
+
+                if (suiteItems.length() > 0) {
+                    postmanCollection.getJSONArray("item").put(createTestSuiteFolder(suiteName, suiteItems));
+                }
+            }
+
+            // Write Postman JSON to file
+            try (FileWriter fileWriter = new FileWriter(outputFile)) {
+                fileWriter.write(postmanCollection.toString(4));
+                System.out.println("✅ Postman collection created successfully: " + outputFile);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Create Postman Collection Structure
+    public static JSONObject createPostmanCollection(String apiName) {
+        JSONObject collection = new JSONObject();
+        collection.put("info", new JSONObject()
+                .put("name", apiName)
+                .put("schema", "https://schema.getpostman.com/json/collection/v2.1.0/collection.json")
+        );
+        collection.put("item", new JSONArray());
+        return collection;
+    }
+
+    // Create Test Suite Folder
+    public static JSONObject createTestSuiteFolder(String name, JSONArray items) {
+        JSONObject folder = new JSONObject();
+        folder.put("name", name);
+        folder.put("item", items);
+        return folder;
+    }
+
+    // Create Postman Request Item
+    public static JSONObject createRequestItem(Element testStep, String stepName) {
+        Element request = (Element) testStep.getElementsByTagName("con:request").item(0);
+        String method = request.getAttribute("method");
+        String endpoint = request.getElementsByTagName("con:endpoint").item(0).getTextContent();
+        String path = request.getAttribute("path");
+        String url = endpoint + path;
+
+        JSONArray headers = new JSONArray();
+        NodeList headerList = request.getElementsByTagName("con:header");
+        for (int i = 0; i < headerList.getLength(); i++) {
+            Element header = (Element) headerList.item(i);
+            headers.put(new JSONObject()
+                    .put("key", header.getAttribute("name"))
+                    .put("value", header.getTextContent())
+            );
+        }
+
+        String body = request.getTextContent().trim();
+
+        // Handle assertions
+        JSONArray tests = convertAssertionsToTests(testStep, stepName);
+
+        // Create request
+        JSONObject requestItem = new JSONObject();
+        requestItem.put("name", stepName);
+        requestItem.put("request", new JSONObject()
+                .put("method", method)
+                .put("header", headers)
+                .put("url", new JSONObject()
+                        .put("raw", url)
+                        .put("host", new JSONArray().put(url.split("/")[2]))
+                        .put("path", new JSONArray(List.of(url.split("/")).subList(3, url.split("/").length)))
+                )
+                .put("body", new JSONObject()
+                        .put("mode", "raw")
+                        .put("raw", body)
+                )
+        );
+
+        if (tests.length() > 0) {
+            requestItem.put("event", new JSONArray()
+                    .put(new JSONObject()
+                            .put("listen", "test")
+                            .put("script", new JSONObject()
+                                    .put("type", "text/javascript")
+                                    .put("exec", tests)
+                            )
+                    )
+            );
+        }
+        return requestItem;
+    }
+
+    // Convert Assertions to Postman Tests
+    public static JSONArray convertAssertionsToTests(Element testStep, String stepName) {
+        JSONArray tests = new JSONArray();
+        NodeList assertionList = testStep.getElementsByTagName("con:assertion");
+        for (int i = 0; i < assertionList.getLength(); i++) {
+            Element assertion = (Element) assertionList.item(i);
+            String assertionType = assertion.getAttribute("type");
+            String assertionValue = assertion.getTextContent().trim();
+
+            switch (assertionType) {
+                case "Contains":
+                    tests.put(String.format("pm.test(\"%s contains %s\", function () {", stepName, assertionValue));
+                    tests.put(String.format("    pm.expect(pm.response.text()).to.include(\"%s\");", assertionValue));
+                    tests.put("});");
+                    break;
+                case "NotContains":
+                    tests.put(String.format("pm.test(\"%s should not contain %s\", function () {", stepName, assertionValue));
+                    tests.put(String.format("    pm.expect(pm.response.text()).not.to.include(\"%s\");", assertionValue));
+                    tests.put("});");
+                    break;
+                case "Valid HTTP Status":
+                    tests.put(String.format("pm.test(\"%s returns status %s\", function () {", stepName, assertionValue));
+                    tests.put(String.format("    pm.response.to.have.status(%s);", assertionValue));
+                    tests.put("});");
+                    break;
+                case "JSONPath Match":
+                    tests.put(String.format("pm.test(\"%s JSONPath match %s\", function () {", stepName, assertionValue));
+                    tests.put(String.format("    var jsonData = pm.response.json();"));
+                    tests.put(String.format("    pm.expect(jsonData.%s).to.eql('%s');", assertionValue, assertionValue));
+                    tests.put("});");
+                    break;
+                case "XPath Match":
+                    tests.put("// TODO: Handle XPath assertion with postman-xml2json");
+                    tests.put(String.format("// XPath Match: %s", assertionValue));
+                    break;
+            }
+        }
+        return tests;
+    }
+
+    // Convert Groovy Script to JavaScript (Postman format)
+    public static JSONArray convertGroovyToJS(String groovyScript) {
+        JSONArray jsScript = new JSONArray();
+        String[] lines = groovyScript.split("\n");
+
+        for (String line : lines) {
+            line = line.trim();
+            if (line.startsWith("assert")) {
+                String[] parts = line.replace("assert", "").trim().split("==");
+                if (parts.length == 2) {
+                    jsScript.put(String.format("pm.expect(%s).to.eql(%s);", parts[0].trim(), parts[1].trim()));
+                }
+            } else if (line.startsWith("log.info")) {
+                String content = line.substring(line.indexOf("(") + 1, line.indexOf(")"));
+                jsScript.put(String.format("console.log(%s);", content));
+            }
+        }
+        return jsScript;
+    }
+
+    // Create Dummy Request for Groovy Scripts
+    public static JSONObject createGroovyRequest(String stepName, JSONArray jsScript) {
+        JSONObject request = new JSONObject();
+        request.put("name", stepName);
+        request.put("request", new JSONObject()
+                .put("method", "GET")
+                .put("url", "http://example.com")
+        );
+        request.put("event", new JSONArray()
+                .put(new JSONObject()
+                        .put("listen", "test")
+                        .put("script", new JSONObject()
+                                .put("type", "text/javascript")
+                                .put("exec", jsScript)
+                        )
+                )
+        );
+        return request;
+    }
+}
