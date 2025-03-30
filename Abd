@@ -1,78 +1,173 @@
-import java.util.*;
 import java.util.regex.*;
 
-public class DataParser {
-
-    // Pattern to detect the main row (like 26 SUDIPC1 CONSTANT EXTERNAL)
-    private static final Pattern ROW_PATTERN = Pattern.compile("^(\\d{2,})\\s+(\\w+.*)");
-    // Pattern to detect sub-levels (like 2, 3, etc.)
-    private static final Pattern SUB_ROW_PATTERN = Pattern.compile("^\\d+\\s.*");
+public class ParseAndPrintRows {
 
     public static void main(String[] args) {
-        // Input as a String array
-        String[] inputLines = {
-            "26 SUDIPC1 CONSTANT EXTERNAL",
-            "    ENTRY BYADDR CHARACTER(40) UNALIGNED,",
-            "    BYADDR CHARACTER(8) UNALIGNED,",
-            "    1 BYADDR,",
-            "        2 CHARACTER(8) UNALIGNED,",
-            "        2 FIXED BIN(31,0),",
-            "        2 CHARACTER(8) VARYING UNALIGNED,",
-            "        2 CHARACTER(8) UNALIGNED,",
-            "        2 DIM(1:6) FIXED BIN(31,0),",
-            "    2,",
-            "        3 CHARACTER(3) UNALIGNED,",
-            "        3 CHARACTER(6) UNALIGNED,",
-            "    BYADDR FIXED BIN(31,0),",
-            "    BYADDR FIXED BIN(31,0),",
-            "155 M2VADVD_DET_ADVISOR",
-            "    2 CHARACTER(10) UNALIGNED,",
-            "    2 FIXED BIN(31,0)"
-        };
+        // Input string (replace with file read if needed)
+        String input = """
+                318         _on_Begin_405_BLK_2        CONSTANT
+                                                ENTRY()
+                                                OPTIONS (LINKAGE (OPTLINK))
+                320    _on_Begin_405_BLK_3      CONSTANT
+                                         ENTRY()
+                                         OPTIONS (LINKAGE (OPTLINK))
+                145    ACCEPT_CNT              MEMBER IN RECORD_CONTROLS IN M2CLMN FIXED(9,0)
+                                        Refs: 1044
+                                        Sets: 1041
+                157   BLANK_CST                AUTOMATIC CHARACTER(1) UNALIGNED INITIAL
+                                        Refs: 334 444 5994 288 940 838 8749 818 929 1882 919
+                                              1829 1881 818 818 9393 828 8182 82992 828 2882 828
+                                              189 939 737 9929 8383 38 939 939 89 8383 9838 883
+                718   GET_ISO_DATE             CONSTANT EXTERNAL
+                                        ENTRY(BYADDRR CHARACTER(10) UNALIGNED,
+                                              BYADDRR FIXED DEC(9,0),
+                                              BYADDRR CHARACTER(10) UNALIGNED,
+                                              BYADDRR FIXED DEC(9,0),
+                                              BYADDRR CHARACTER(10) UNALIGNED
+                                              BYADDRR CHARACTER(10) UNALIGNED )
+                                        OPTIONS( LINKAGE ( SYSTEM ) )
+                                        Refs: 422 436 451 648 682
+                26  SUDIPC1                    CONSTANT EXTERNAL
+                                        ENTRY( BYADDRR CHARACTER(10) UNALIGNED,
+                                               BYADDRR CHARACTER(10) UNALIGNED,
+                                               1 BYADDR,
+                                               2 CHARACTER(10) UNALIGNED,
+                                               2 FIXED BIN(31,0),
+                                               2 FIXED BIN(31,0),
+                                               2 CHARACTER(10) UNALIGNED,
+                                               2 CHARACTER(10) UNALIGNED,
+                                               2 DIM(1:6) FIXED BIN(31,0),
+                                               2,
+                                                 3 CHARACTER(10) UNALIGNED,
+                                                 3 CHARACTER(10) UNALIGNED,
+                                                 3 CHARACTER(10) UNALIGNED,
+                                                 3 CHARACTER(10) UNALIGNED,
+                                                 3 CHARACTER(10) UNALIGNED,
+                                               3  CHARACTER(10) UNALIGNED,
+                                               BYADDR FIXED BIN(31,0),
+                                               BYADDR FIXED BIN (31,0))
+                                        OPTIONS ( LINKAGE ( SYSTEM))
+                24   TUDICAD             CONSTANT EXTERNAL
+                                                 ENTRY(BYADDRR CHARACTER(10) UNALIGNED,
+                                                       BYADDRR FIXED DEC(9,0),
+                                                       BYADDRR CHARACTER(10) UNALIGNED,
+                                                       BYADDRR FIXED DEC(9,0),
+                                                       BYADDRR CHARACTER(10) UNALIGNED
+                                                       BYADDRR CHARACTER(10) UNALIGNED )
+                                                 OPTIONS( COBOL NODESCRIPTOR  LINKAGE  (COBOL) )
+                157   BLANK_CST_2                AUTOMATIC CHARACTER(1) UNALIGNED INITIAL
+                                                 Refs: 334 444 5994 288 940 838 8749 818 929 1882 919
+                                                       1829 1881 818 818 9393 828 8182 82992 828 2882 828
+                                                       189 939 737 9929 8383 38 939 939 89 8383 9838 883
+                                                 Sets: 1818 19191 910 9191
+                                                       8189 919 1891
+                """;
 
-        // Map to store row data
-        Map<Integer, String> dataMap = new LinkedHashMap<>();
-        StringBuilder currentBlock = new StringBuilder();
-        String currentKey = null;
+        // Split input into lines
+        String[] lines = input.split("\\n");
 
-        for (String line : inputLines) {
-            line = line.trim(); // Remove leading/trailing spaces
-            Matcher matcher = ROW_PATTERN.matcher(line);
+        // Pattern to match a valid row that starts with a number + identifier
+        Pattern rowPattern = Pattern.compile("^\\d+\\s+\\w+.*");
 
-            // If we find a main row (e.g., 26 SUDIPC1 ...)
-            if (matcher.find()) {
-                // Save the previous block if any
-                if (currentKey != null) {
-                    dataMap.put(Integer.parseInt(currentKey), currentBlock.toString().trim());
+        // Pattern to match continuation for valid PLI datatypes and BYADDR, etc.
+        Pattern pliPattern = Pattern.compile("^\\s*\\d*\\s*(CHARACTER|FIXED|BIN|DEC|UNALIGNED|DIM|BYADDR|ENTRY|OPTIONS|Refs:|Sets:|\\)).*");
+
+        // Pattern to capture continuation after Refs:/Sets: that starts with a number
+        Pattern refSetContinuationPattern = Pattern.compile("^\\d+(\\s+\\d+)*$");
+
+        // Track grouped rows
+        StringBuilder currentRow = new StringBuilder();
+        boolean isContinuation = false;
+        boolean refSetEncountered = false;
+
+        // Process each line
+        for (String line : lines) {
+            line = line.trim(); // Trim leading and trailing spaces
+            if (line.isEmpty()) continue; // Skip empty lines
+
+            // Check if the line starts a new row
+            Matcher rowMatcher = rowPattern.matcher(line);
+            Matcher pliMatcher = pliPattern.matcher(line);
+            Matcher refSetContinuationMatcher = refSetContinuationPattern.matcher(line);
+
+            if (rowMatcher.matches() && !pliMatcher.matches() && !refSetContinuationMatcher.matches()) {
+                // Print and parse the previous row if it exists
+                if (currentRow.length() > 0) {
+                    parseAndPrintRow(currentRow.toString().trim());
                 }
 
-                // Start a new row block
-                currentKey = matcher.group(1); // Get the row ID (e.g., 26 or 155)
-                currentBlock = new StringBuilder(line); // Start new block with current line
+                // Start a new row
+                currentRow.setLength(0);
+                currentRow.append(line);
+                isContinuation = true;
+                refSetEncountered = false;
 
-            } else if (currentKey != null) {
-                // If it's a sub-level or indented content, append to the parent row
-                if (SUB_ROW_PATTERN.matcher(line).find() || line.matches("^[\\d,]+.*")) {
-                    currentBlock.append(" ").append(line);
-                }
+            } else if (isContinuation && (pliMatcher.matches() || refSetContinuationMatcher.matches())) {
+                // Valid continuation line (either PLI type or continuation after Refs:/Sets:)
+                currentRow.append(" ").append(line.replaceAll("\\s+", " ").trim());
+                refSetEncountered = line.startsWith("Refs:") || line.startsWith("Sets:");
+
+            } else if (refSetEncountered && refSetContinuationMatcher.matches()) {
+                // If after Refs:/Sets:, and line starts with number — continuation
+                currentRow.append(" ").append(line.replaceAll("\\s+", " ").trim());
+
+            } else if (isContinuation) {
+                // Normal continuation — append to current row
+                currentRow.append(" ").append(line.replaceAll("\\s+", " ").trim());
             }
         }
 
-        // Save the last block if it exists
-        if (currentKey != null) {
-            dataMap.put(Integer.parseInt(currentKey), currentBlock.toString().trim());
+        // Print the last row if it exists
+        if (currentRow.length() > 0) {
+            parseAndPrintRow(currentRow.toString().trim());
         }
-
-        // Generate Java class or print results
-        generateJavaClass(dataMap);
     }
 
-    // Generates Java classes or prints content dynamically
-    private static void generateJavaClass(Map<Integer, String> dataMap) {
-        for (Map.Entry<Integer, String> entry : dataMap.entrySet()) {
-            System.out.println("Processing row ID: " + entry.getKey());
-            System.out.println("Content: " + entry.getValue());
-            System.out.println("---------------");
+    // ✅ Method to parse and print row
+    private static void parseAndPrintRow(String row) {
+        String statement = "";
+        String identifier = "";
+        String attributes = "";
+        String refs = "";
+        String sets = "";
+
+        // Split by "Refs:" or "Sets:"
+        String[] parts = row.split("\\s+Refs:|\\s+Sets:", -1);
+        String mainPart = parts[0].trim();
+
+        for (int i = 1; i < parts.length; i++) {
+            if (row.contains("Refs:") && i == 1) {
+                refs = parts[i].trim();
+            } else if (row.contains("Sets:") && (i == 1 || i == 2)) {
+                sets = parts[i].trim();
+            }
         }
+
+        // Split main part by multiple spaces after identifier
+        String[] mainParts = mainPart.split("\\s{2,}", 3);
+
+        if (mainParts.length >= 1) {
+            statement = mainParts[0].trim(); // Statement
+        }
+
+        if (mainParts.length >= 2) {
+            identifier = mainParts[1].trim(); // Identifier
+        }
+
+        if (mainParts.length >= 3) {
+            attributes = mainParts[2].trim(); // Attributes
+        }
+
+        // Print the parsed row
+        System.out.println("Statement: " + statement);
+        System.out.println("Identifier: " + identifier);
+        System.out.println("Attributes: " + attributes);
+        if (!refs.isEmpty()) {
+            System.out.println("Refs: " + refs);
+        }
+        if (!sets.isEmpty()) {
+            System.out.println("Sets: " + sets);
+        }
+        System.out.println("------------------------------------------------");
     }
 }
