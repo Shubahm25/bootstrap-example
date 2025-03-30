@@ -1,3 +1,4 @@
+import java.util.*;
 import java.util.regex.*;
 
 public class ParseAndPrintRows {
@@ -8,17 +9,19 @@ public class ParseAndPrintRows {
                 318         _on_Begin_405_BLK_2        CONSTANT
                                                 ENTRY()
                                                 OPTIONS (LINKAGE (OPTLINK))
-                320    _on_Begin_405_BLK_3      CONSTANT
+         320    _on_Begin_405_BLK_3      CONSTANT
                                          ENTRY()
                                          OPTIONS (LINKAGE (OPTLINK))
-                145    ACCEPT_CNT              MEMBER IN RECORD_CONTROLS IN M2CLMN FIXED(9,0)
+         +++++ ABS                      BUILTIN
+                                        REFS: 28
+         145    ACCEPT_CNT              MEMBER IN RECORD_CONTROLS IN M2CLMN FIXED(9,0)
                                         Refs: 1044
                                         Sets: 1041
-                157   BLANK_CST                AUTOMATIC CHARACTER(1) UNALIGNED INITIAL
+         157   BLANK_CST                AUTOMATIC CHARACTER(1) UNALIGNED INITIAL
                                         Refs: 334 444 5994 288 940 838 8749 818 929 1882 919
                                               1829 1881 818 818 9393 828 8182 82992 828 2882 828
                                               189 939 737 9929 8383 38 939 939 89 8383 9838 883
-                718   GET_ISO_DATE             CONSTANT EXTERNAL
+         718   GET_ISO_DATE             CONSTANT EXTERNAL
                                         ENTRY(BYADDRR CHARACTER(10) UNALIGNED,
                                               BYADDRR FIXED DEC(9,0),
                                               BYADDRR CHARACTER(10) UNALIGNED,
@@ -27,7 +30,7 @@ public class ParseAndPrintRows {
                                               BYADDRR CHARACTER(10) UNALIGNED )
                                         OPTIONS( LINKAGE ( SYSTEM ) )
                                         Refs: 422 436 451 648 682
-                26  SUDIPC1                    CONSTANT EXTERNAL
+         26  SUDIPC1                    CONSTANT EXTERNAL
                                         ENTRY( BYADDRR CHARACTER(10) UNALIGNED,
                                                BYADDRR CHARACTER(10) UNALIGNED,
                                                1 BYADDR,
@@ -47,7 +50,7 @@ public class ParseAndPrintRows {
                                                BYADDR FIXED BIN(31,0),
                                                BYADDR FIXED BIN (31,0))
                                         OPTIONS ( LINKAGE ( SYSTEM))
-                24   TUDICAD             CONSTANT EXTERNAL
+         24   TUDICAD             CONSTANT EXTERNAL
                                                  ENTRY(BYADDRR CHARACTER(10) UNALIGNED,
                                                        BYADDRR FIXED DEC(9,0),
                                                        BYADDRR CHARACTER(10) UNALIGNED,
@@ -55,7 +58,7 @@ public class ParseAndPrintRows {
                                                        BYADDRR CHARACTER(10) UNALIGNED
                                                        BYADDRR CHARACTER(10) UNALIGNED )
                                                  OPTIONS( COBOL NODESCRIPTOR  LINKAGE  (COBOL) )
-                157   BLANK_CST_2                AUTOMATIC CHARACTER(1) UNALIGNED INITIAL
+         157   BLANK_CST_2                AUTOMATIC CHARACTER(1) UNALIGNED INITIAL
                                                  Refs: 334 444 5994 288 940 838 8749 818 929 1882 919
                                                        1829 1881 818 818 9393 828 8182 82992 828 2882 828
                                                        189 939 737 9929 8383 38 939 939 89 8383 9838 883
@@ -75,15 +78,28 @@ public class ParseAndPrintRows {
         // Pattern to capture continuation after Refs:/Sets: that starts with a number
         Pattern refSetContinuationPattern = Pattern.compile("^\\d+(\\s+\\d+)*$");
 
+        // Pattern to check if the line starts with a special character (ignore these lines)
+        Pattern specialCharacterPattern = Pattern.compile("^[^a-zA-Z0-9\\s].*");
+
         // Track grouped rows
         StringBuilder currentRow = new StringBuilder();
         boolean isContinuation = false;
         boolean refSetEncountered = false;
+        boolean skipRow = false;
+
+        // ✅ List to store parsed rows as Map
+        List<Map<String, String>> rowList = new ArrayList<>();
 
         // Process each line
         for (String line : lines) {
             line = line.trim(); // Trim leading and trailing spaces
             if (line.isEmpty()) continue; // Skip empty lines
+
+            // Ignore lines that start with special characters
+            if (specialCharacterPattern.matcher(line).matches()) {
+                isContinuation = false;
+                continue;
+            }
 
             // Check if the line starts a new row
             Matcher rowMatcher = rowPattern.matcher(line);
@@ -91,9 +107,20 @@ public class ParseAndPrintRows {
             Matcher refSetContinuationMatcher = refSetContinuationPattern.matcher(line);
 
             if (rowMatcher.matches() && !pliMatcher.matches() && !refSetContinuationMatcher.matches()) {
+                // Get statement and identifier
+                String[] headerParts = line.split("\\s+", 3);
+                String identifier = (headerParts.length >= 2) ? headerParts[1].trim() : "";
+
+                // ✅ Skip row if identifier starts with "SU" or "Tu"
+                if (identifier.startsWith("SU") || identifier.startsWith("TU")) {
+                    skipRow = true;
+                    isContinuation = false;
+                    continue;
+                }
+
                 // Print and parse the previous row if it exists
-                if (currentRow.length() > 0) {
-                    parseAndPrintRow(currentRow.toString().trim());
+                if (!skipRow && currentRow.length() > 0) {
+                    parseAndStoreRow(currentRow.toString().trim(), rowList);
                 }
 
                 // Start a new row
@@ -101,6 +128,11 @@ public class ParseAndPrintRows {
                 currentRow.append(line);
                 isContinuation = true;
                 refSetEncountered = false;
+                skipRow = false;
+
+            } else if (skipRow) {
+                // Skip continuation lines for skipped rows
+                continue;
 
             } else if (isContinuation && (pliMatcher.matches() || refSetContinuationMatcher.matches())) {
                 // Valid continuation line (either PLI type or continuation after Refs:/Sets:)
@@ -117,14 +149,20 @@ public class ParseAndPrintRows {
             }
         }
 
-        // Print the last row if it exists
-        if (currentRow.length() > 0) {
-            parseAndPrintRow(currentRow.toString().trim());
+        // Print and store the last row if it exists
+        if (!skipRow && currentRow.length() > 0) {
+            parseAndStoreRow(currentRow.toString().trim(), rowList);
+        }
+
+        // ✅ Print final list of maps
+        System.out.println("Final List of Parsed Rows:");
+        for (Map<String, String> row : rowList) {
+            System.out.println(row);
         }
     }
 
-    // ✅ Method to parse and print row
-    private static void parseAndPrintRow(String row) {
+    // ✅ Method to parse and store row in a map
+    private static void parseAndStoreRow(String row, List<Map<String, String>> rowList) {
         String statement = "";
         String identifier = "";
         String attributes = "";
@@ -158,16 +196,27 @@ public class ParseAndPrintRows {
             attributes = mainParts[2].trim(); // Attributes
         }
 
-        // Print the parsed row
-        System.out.println("Statement: " + statement);
-        System.out.println("Identifier: " + identifier);
-        System.out.println("Attributes: " + attributes);
-        if (!refs.isEmpty()) {
-            System.out.println("Refs: " + refs);
+        // ✅ Add to rowList only if valid
+        if (!statement.isEmpty() && !identifier.isEmpty()) {
+            Map<String, String> rowMap = new LinkedHashMap<>();
+            rowMap.put("Statement", statement);
+            rowMap.put("Identifier", identifier);
+            rowMap.put("Attributes", attributes);
+            rowMap.put("Refs", refs);
+            rowMap.put("Sets", sets);
+            rowList.add(rowMap);
+
+            // Print parsed row for verification
+            System.out.println("Statement: " + statement);
+            System.out.println("Identifier: " + identifier);
+            System.out.println("Attributes: " + attributes);
+            if (!refs.isEmpty()) {
+                System.out.println("Refs: " + refs);
+            }
+            if (!sets.isEmpty()) {
+                System.out.println("Sets: " + sets);
+            }
+            System.out.println("------------------------------------------------");
         }
-        if (!sets.isEmpty()) {
-            System.out.println("Sets: " + sets);
-        }
-        System.out.println("------------------------------------------------");
     }
 }
