@@ -1,0 +1,65 @@
+import net.sourceforge.plantuml.FileFormatOption;
+import net.sourceforge.plantuml.FileFormat;
+import net.sourceforge.plantuml.SourceStringReader;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.*;
+
+public class SimplifiedMindmap {
+
+    // Sample graph (replace or load your full graph here)
+    private static final Map<String, List<String>> callGraph = new HashMap<>();
+
+    static {
+        callGraph.put("ModuleA", Arrays.asList("ModuleB", "ModuleC"));
+        callGraph.put("ModuleB", Arrays.asList("ModuleD", "ModuleE"));
+        callGraph.put("ModuleD", Arrays.asList("ModuleF"));
+        callGraph.put("ModuleE", Arrays.asList("ModuleG", "ModuleH"));
+    }
+
+    public static void main(String[] args) throws IOException {
+        String rootModule = "ModuleA"; // Start from your root module
+
+        String mindmap = generateSimplifiedMindmap(rootModule, callGraph);
+        String pumlPath = "output/" + rootModule + "_mindmap.puml";
+        Files.createDirectories(Paths.get("output"));
+        Files.write(Paths.get(pumlPath), mindmap.getBytes());
+
+        generateImageFromPuml(pumlPath);
+        System.out.println("Mindmap created successfully.");
+    }
+
+    public static String generateSimplifiedMindmap(String rootModule, Map<String, List<String>> graph) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("@startmindmap\n");
+        sb.append("* ").append(rootModule).append("\n");
+
+        List<String> children = graph.getOrDefault(rootModule, List.of());
+
+        for (String child : children) {
+            List<String> grandchildren = graph.getOrDefault(child, List.of());
+            String label = child;
+            if (!grandchildren.isEmpty()) {
+                label += " (" + String.join(", ", grandchildren) + ")";
+            }
+            sb.append("** ").append(label).append("\n");
+        }
+
+        sb.append("@endmindmap\n");
+        return sb.toString();
+    }
+
+    public static void generateImageFromPuml(String pumlFilePath) {
+        try {
+            String plantUmlSource = new String(Files.readAllBytes(Paths.get(pumlFilePath)));
+            SourceStringReader reader = new SourceStringReader(plantUmlSource);
+            File outputImageFile = new File(pumlFilePath.replace(".puml", ".png"));
+            reader.outputImage(outputImageFile, new FileFormatOption(FileFormat.PNG));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
