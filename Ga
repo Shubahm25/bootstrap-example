@@ -1,0 +1,94 @@
+import net.sourceforge.plantuml.FileFormat;
+import net.sourceforge.plantuml.FileFormatOption;
+import net.sourceforge.plantuml.SourceStringReader;
+import net.sourceforge.plantuml.PlantUMLException;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.*;
+
+public class MindmapGenerator {
+
+    // Sample call graph where modules have submodules (submodules also have their own submodules)
+    private static final Map<String, List<String>> callGraph = new HashMap<>();
+
+    static {
+        callGraph.put("ModuleA", Arrays.asList("ModuleB", "ModuleC"));
+        callGraph.put("ModuleB", Arrays.asList("ModuleD", "ModuleE"));
+        callGraph.put("ModuleD", Arrays.asList("ModuleF"));
+        callGraph.put("ModuleE", Arrays.asList("ModuleG", "ModuleH"));
+        callGraph.put("ModuleF", Arrays.asList("ModuleI"));
+        // Add more modules as needed
+    }
+
+    public static void main(String[] args) throws IOException {
+        int maxDepth = 4;  // Control the depth of expansion (can be adjusted as needed)
+
+        // Generate mindmap and create image for each root module (depth 1)
+        for (String rootModule : callGraph.keySet()) {
+            String mindmap = generateMindmap(rootModule, callGraph, maxDepth);
+            // Save the mindmap as a .puml file
+            String pumlFilePath = "output/" + rootModule + ".puml";
+            Files.write(Paths.get(pumlFilePath), mindmap.getBytes());
+
+            // Generate the image from the .puml file
+            generateImageFromPuml(pumlFilePath);
+        }
+
+        System.out.println("Mindmaps and images generated successfully!");
+    }
+
+    // Generate the PlantUML mindmap for a given root module
+    public static String generateMindmap(String rootModule, Map<String, List<String>> graph, int maxDepth) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("@startmindmap\n");
+        sb.append("* ").append(rootModule).append("\n");
+
+        // Build the mindmap recursively
+        buildMindmap(rootModule, 1, maxDepth, sb, graph, new HashSet<>(), 1);
+
+        sb.append("@endmindmap\n");
+        return sb.toString();
+    }
+
+    // Recursively build the mindmap, adding child modules
+    private static void buildMindmap(String module, int depth, int maxDepth, StringBuilder sb, Map<String, List<String>> graph, Set<String> visited, int currentLevel) {
+        if (depth > maxDepth || visited.contains(module)) return;
+
+        visited.add(module);
+
+        List<String> children = graph.getOrDefault(module, List.of());
+        String prefix = "*".repeat(currentLevel + 1); // Adjust indentation based on current level
+
+        for (String child : children) {
+            sb.append(prefix).append(" ").append(child).append("\n");
+
+            // If the child module has submodules, link to a new expanded .puml file (recursion)
+            if (currentLevel + 1 < maxDepth && graph.containsKey(child)) {
+                sb.append("[[").append(child).append("_Expanded.puml]] Expand ").append(child).append("\n");
+            } else {
+                buildMindmap(child, depth + 1, maxDepth, sb, graph, visited, currentLevel + 1);
+            }
+        }
+    }
+
+    // Generate an image from the PlantUML file
+    public static void generateImageFromPuml(String pumlFilePath) {
+        try {
+            // Initialize the PlantUML source string reader
+            SourceStringReader reader = new SourceStringReader(new String(Files.readAllBytes(Paths.get(pumlFilePath))));
+
+            // Specify the output image file path (PNG format)
+            File outputImageFile = new File(pumlFilePath.replace(".puml", ".png"));
+
+            // Generate the image and save it as a PNG
+            reader.outputImage(outputImageFile, new FileFormatOption(FileFormat.PNG));
+
+            System.out.println("Image generated successfully at " + outputImageFile.getPath());
+        } catch (IOException | PlantUMLException e) {
+            e.printStackTrace();
+        }
+    }
+}
