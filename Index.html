@@ -63,8 +63,12 @@
   <!-- Search bar -->
   <input type="text" id="search" placeholder="Search for Node" />
 
+  <!-- Load SVG Button -->
+  <button id="load-svg-btn">Load and Interact with SVG</button>
+
   <!-- SVG container -->
   <div id="svg-container">
+    <!-- SVG file is lazy-loaded here -->
     <object id="diagram" type="image/svg+xml" data="path/to/your-mindmap.svg" width="100%" height="600"></object>
   </div>
 
@@ -76,102 +80,103 @@
     const svgContainer = document.getElementById('svg-container');
     const searchInput = document.getElementById('search');
     const svgObject = document.getElementById('diagram');
+    const loadSvgButton = document.getElementById('load-svg-btn');
 
-    // Zoom and Pan variables
-    let scale = 1;
-    let offsetX = 0;
-    let offsetY = 0;
-    let isPanning = false;
-    let startX, startY;
-
-    // Load the SVG and add interactivity
+    // Load the SVG on page load
     svgObject.addEventListener('load', function () {
+      // Initial setup, but we won't interact with the SVG yet
+      console.log('SVG loaded');
+    });
+
+    // Handle button click to interact with the SVG
+    loadSvgButton.addEventListener('click', function () {
       const svgDoc = svgObject.contentDocument;
-      const paths = svgDoc.querySelectorAll('path'); // Select all paths
-      const nodes = svgDoc.querySelectorAll('g.node'); // Select all node groups
+      if (svgDoc) {
+        const paths = svgDoc.querySelectorAll('path');
+        const nodes = svgDoc.querySelectorAll('g.node');
 
-      // Zoom functionality
-      svgContainer.addEventListener('wheel', (event) => {
-        event.preventDefault();
-        const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-        scale *= zoomFactor;
-        svgDoc.documentElement.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
-      });
+        // Path highlighting functionality
+        paths.forEach(path => {
+          path.addEventListener('mouseover', () => {
+            path.classList.add('highlight');
+          });
 
-      // Pan functionality
-      svgContainer.addEventListener('mousedown', (event) => {
-        isPanning = true;
-        startX = event.clientX - offsetX;
-        startY = event.clientY - offsetY;
-      });
-
-      svgContainer.addEventListener('mousemove', (event) => {
-        if (isPanning) {
-          offsetX = event.clientX - startX;
-          offsetY = event.clientY - startY;
-          svgDoc.documentElement.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
-        }
-      });
-
-      svgContainer.addEventListener('mouseup', () => {
-        isPanning = false;
-      });
-
-      // Node click functionality (expand, collapse, show data)
-      nodes.forEach(group => {
-        group.addEventListener('click', (event) => {
-          const nodeName = group.querySelector('text') ? group.querySelector('text').textContent : 'Unnamed Node';
-          alert(`Clicked on ${nodeName}`);
-          // Toggle visibility or show additional data (expand/collapse)
-          group.style.visibility = group.style.visibility === 'hidden' ? 'visible' : 'hidden';
-        });
-      });
-
-      // Path highlighting functionality
-      paths.forEach(path => {
-        path.addEventListener('mouseover', () => {
-          path.classList.add('highlight');
+          path.addEventListener('mouseout', () => {
+            path.classList.remove('highlight');
+          });
         });
 
-        path.addEventListener('mouseout', () => {
-          path.classList.remove('highlight');
-        });
-      });
-
-      // Tooltip functionality
-      nodes.forEach(group => {
-        group.addEventListener('mouseover', (event) => {
-          const nodeName = group.querySelector('text') ? group.querySelector('text').textContent : 'Unnamed Node';
-          tooltip.textContent = `Node: ${nodeName}`;
-          tooltip.style.visibility = 'visible';
-          tooltip.style.top = `${event.pageY + 10}px`;
-          tooltip.style.left = `${event.pageX + 10}px`;
-        });
-
-        group.addEventListener('mouseout', () => {
-          tooltip.style.visibility = 'hidden';
-        });
-      });
-
-      // Animate flow direction (simple example)
-      let pathIndex = 0;
-      setInterval(() => {
-        if (pathIndex < paths.length) {
-          paths[pathIndex].setAttribute('stroke', 'green'); // Change color to show flow
-          pathIndex++;
-        } else {
-          pathIndex = 0; // Reset animation
-        }
-      }, 1000);
-
-      // Search and filter functionality
-      searchInput.addEventListener('input', (event) => {
-        const searchTerm = event.target.value.toLowerCase();
+        // Node click functionality (expand, collapse, show data)
         nodes.forEach(group => {
-          const nodeName = group.querySelector('text') ? group.querySelector('text').textContent.toLowerCase() : '';
-          group.style.visibility = nodeName.includes(searchTerm) ? 'visible' : 'hidden';
+          group.addEventListener('click', (event) => {
+            const nodeName = group.querySelector('text') ? group.querySelector('text').textContent : 'Unnamed Node';
+            alert(`Clicked on ${nodeName}`);
+            // Toggle visibility or show additional data (expand/collapse)
+            group.style.visibility = group.style.visibility === 'hidden' ? 'visible' : 'hidden';
+          });
         });
-      });
+
+        // Tooltip functionality
+        nodes.forEach(group => {
+          group.addEventListener('mouseover', (event) => {
+            const nodeName = group.querySelector('text') ? group.querySelector('text').textContent : 'Unnamed Node';
+            tooltip.textContent = `Node: ${nodeName}`;
+            tooltip.style.visibility = 'visible';
+            tooltip.style.top = `${event.pageY + 10}px`;
+            tooltip.style.left = `${event.pageX + 10}px`;
+          });
+
+          group.addEventListener('mouseout', () => {
+            tooltip.style.visibility = 'hidden';
+          });
+        });
+
+        // Zoom and Pan functionality
+        let scale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isPanning = false;
+        let startX, startY;
+
+        // Zoom functionality
+        svgContainer.addEventListener('wheel', (event) => {
+          event.preventDefault();
+          const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+          scale *= zoomFactor;
+          svgDoc.documentElement.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
+        });
+
+        // Pan functionality
+        svgContainer.addEventListener('mousedown', (event) => {
+          isPanning = true;
+          startX = event.clientX - offsetX;
+          startY = event.clientY - offsetY;
+        });
+
+        svgContainer.addEventListener('mousemove', (event) => {
+          if (isPanning) {
+            offsetX = event.clientX - startX;
+            offsetY = event.clientY - startY;
+            svgDoc.documentElement.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
+          }
+        });
+
+        svgContainer.addEventListener('mouseup', () => {
+          isPanning = false;
+        });
+
+        // Search and filter functionality
+        searchInput.addEventListener('input', (event) => {
+          const searchTerm = event.target.value.toLowerCase();
+          nodes.forEach(group => {
+            const nodeName = group.querySelector('text') ? group.querySelector('text').textContent.toLowerCase() : '';
+            group.style.visibility = nodeName.includes(searchTerm) ? 'visible' : 'hidden';
+          });
+        });
+
+      } else {
+        console.error('SVG content could not be accessed.');
+      }
     });
   </script>
 
