@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Mind Map</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+
+    #svg-container {
+      width: 80%;
+      margin: 20px auto;
+      overflow: hidden;
+      border: 1px solid #ccc;
+      cursor: grab;
+      background-color: #fff;
+    }
+
+    #tooltip {
+      position: absolute;
+      background: lightgray;
+      padding: 5px;
+      border-radius: 3px;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #search {
+      margin: 20px auto;
+      display: block;
+      padding: 8px;
+      font-size: 16px;
+      width: 80%;
+    }
+
+    .path {
+      stroke: black;
+      stroke-width: 2;
+      cursor: pointer;
+    }
+
+    .path.highlight {
+      stroke: red;
+      stroke-width: 3;
+    }
+
+    .node {
+      cursor: pointer;
+      transition: transform 0.3s ease;
+    }
+
+    /* Zoom and Pan styles */
+    #diagram {
+      transform-origin: 0 0;
+      transition: transform 0.2s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Search bar -->
+  <input type="text" id="search" placeholder="Search for Node" />
+
+  <!-- SVG container -->
+  <div id="svg-container"></div>
+
+  <!-- Tooltip -->
+  <div id="tooltip"></div>
+
+  <script>
+    // Dynamically load the SVG
+    fetch('path/to/your-mindmap.svg')
+      .then(response => response.text())
+      .then(data => {
+        const svgContainer = document.getElementById('svg-container');
+        svgContainer.innerHTML = data; // Inject the SVG content
+
+        // Now that the SVG is inline, we can directly access it
+        const svgDoc = svgContainer.querySelector('svg');
+        svgDoc.setAttribute('width', '100%');
+        svgDoc.setAttribute('height', '600px');
+
+        const paths = svgDoc.querySelectorAll('path');
+        const nodes = svgDoc.querySelectorAll('g.node');
+
+        // Zoom and Pan functionality
+        let scale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isPanning = false;
+        let startX, startY;
+
+        svgContainer.addEventListener('wheel', (event) => {
+          event.preventDefault();
+          const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+          scale *= zoomFactor;
+          svgDoc.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
+        });
+
+        svgContainer.addEventListener('mousedown', (event) => {
+          isPanning = true;
+          startX = event.clientX - offsetX;
+          startY = event.clientY - offsetY;
+        });
+
+        svgContainer.addEventListener('mousemove', (event) => {
+          if (isPanning) {
+            offsetX = event.clientX - startX;
+            offsetY = event.clientY - startY;
+            svgDoc.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
+          }
+        });
+
+        svgContainer.addEventListener('mouseup', () => {
+          isPanning = false;
+        });
+
+        // Node click functionality (expand, collapse, show data)
+        nodes.forEach(group => {
+          group.addEventListener('click', (event) => {
+            const nodeName = group.querySelector('text') ? group.querySelector('text').textContent : 'Unnamed Node';
+            alert(`Clicked on ${nodeName}`);
+            group.style.visibility = group.style.visibility === 'hidden' ? 'visible' : 'hidden';
+          });
+        });
+
+        // Path highlighting functionality
+        paths.forEach(path => {
+          path.addEventListener('mouseover', () => {
+            path.classList.add('highlight');
+          });
+
+          path.addEventListener('mouseout', () => {
+            path.classList.remove('highlight');
+          });
+        });
+
+        // Tooltip functionality
+        nodes.forEach(group => {
+          group.addEventListener('mouseover', (event) => {
+            const nodeName = group.querySelector('text') ? group.querySelector('text').textContent : 'Unnamed Node';
+            tooltip.textContent = `Node: ${nodeName}`;
+            tooltip.style.visibility = 'visible';
+            tooltip.style.top = `${event.pageY + 10}px`;
+            tooltip.style.left = `${event.pageX + 10}px`;
+          });
+
+          group.addEventListener('mouseout', () => {
+            tooltip.style.visibility = 'hidden';
+          });
+        });
+
+        // Search and filter functionality
+        searchInput.addEventListener('input', (event) => {
+          const searchTerm = event.target.value.toLowerCase();
+          nodes.forEach(group => {
+            const nodeName = group.querySelector('text') ? group.querySelector('text').textContent.toLowerCase() : '';
+            group.style.visibility = nodeName.includes(searchTerm) ? 'visible' : 'hidden';
+          });
+        });
+      })
+      .catch(error => {
+        console.error('Error loading SVG:', error);
+      });
+  </script>
+
+</body>
+</html>
