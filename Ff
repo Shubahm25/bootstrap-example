@@ -1,3 +1,6 @@
+^\\s*\\d+(\\.\\d+)?(?:\\s+\\S+)*\\s*\\|(.*?)\\|
+
+
 import java.util.regex.*;
 import java.util.*;
 
