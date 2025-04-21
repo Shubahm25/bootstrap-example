@@ -1,0 +1,25 @@
+import java.util.regex.*;
+import java.util.*;
+
+public class GenericExtractor {
+    public static void main(String[] args) {
+        List<String> lines = Arrays.asList(
+            "1636.0     641 2| ;                                                           |",
+            "100.12         |    This is middle section with indents      | extra text",
+            "25             |Hello World|",
+            "5000           |        Indented code        | more"
+        );
+
+        Pattern pattern = Pattern.compile("^\\d+(\\.\\d+)?(?:\\s+\\d+)*\\s*\\|(.*?)\\|");
+
+        for (String line : lines) {
+            Matcher matcher = pattern.matcher(line);
+            if (matcher.find()) {
+                String middle = matcher.group(2);
+                System.out.println("[" + middle + "]");
+            } else {
+                System.out.println("[No match] " + line);
+            }
+        }
+    }
+}
