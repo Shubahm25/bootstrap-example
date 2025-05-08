@@ -1,0 +1,244 @@
+import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.statement.select.*;
+import net.sf.jsqlparser.statement.update.Update;
+import net.sf.jsqlparser.statement.delete.Delete;
+import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.expression.*;
+import net.sf.jsqlparser.schema.Table;
+
+import java.util.*;
+
+public class SqlColumnExtractor {
+
+    public static Set<String> extractColumnTablePairs(String sql) throws Exception {
+        Statement statement = CCJSqlParserUtil.parse(sql);
+        Set<String> results = new LinkedHashSet<>();
+        Map<String, String> aliasToTable = new HashMap<>();
+
+        if (statement instanceof Select select) {
+            processSelectBody(select.getSelectBody(), results, aliasToTable);
+        } else if (statement instanceof Insert insert) {
+            processInsert(insert, results, aliasToTable);
+        } else if (statement instanceof Update update) {
+            processUpdate(update, results, aliasToTable);
+        } else if (statement instanceof Delete delete) {
+            processDelete(delete, results, aliasToTable);
+        }
+
+        return results;
+    }
+
+    private static void processSelectBody(SelectBody selectBody, Set<String> columns, Map<String, String> aliasMap) {
+        if (selectBody instanceof PlainSelect plainSelect) {
+            // Handle SELECT *
+            if (plainSelect.getSelectItems().get(0) instanceof AllColumns) {
+                // Assume wildcard applies to all columns of the table
+                FromItem from = plainSelect.getFromItem();
+                if (from instanceof Table) {
+                    String tableName = ((Table) from).getName();
+                    columns.add(tableName + ":*");  // Assuming all columns of the table are selected
+                }
+            }
+
+            // Track FROM item (main table)
+            FromItem from = plainSelect.getFromItem();
+            trackAlias(from, aliasMap);
+
+            // Track JOIN items
+            if (plainSelect.getJoins() != null) {
+                for (Join join : plainSelect.getJoins()) {
+                    trackAlias(join.getRightItem(), aliasMap);
+                }
+            }
+
+            // Walk all expressions
+            List<Expression> expressions = new ArrayList<>();
+            expressions.add(plainSelect.getWhere());
+            expressions.add(plainSelect.getHaving());
+            if (plainSelect.getSelectItems() != null) {
+                for (SelectItem item : plainSelect.getSelectItems()) {
+                    item.accept(new SelectItemVisitorAdapter() {
+                        @Override
+                        public void visit(SelectExpressionItem exprItem) {
+                            expressions.add(exprItem.getExpression());
+                        }
+                    });
+                }
+            }
+            if (plainSelect.getOrderByElements() != null) {
+                for (OrderByElement orderBy : plainSelect.getOrderByElements()) {
+                    expressions.add(orderBy.getExpression());
+                }
+            }
+            if (plainSelect.getGroupBy() != null) {
+                expressions.addAll(plainSelect.getGroupBy().getGroupByExpressions());
+            }
+
+            for (Expression expr : expressions) {
+                if (expr != null)
+                    expr.accept(new ColumnCollector(columns, aliasMap));
+            }
+
+            // Recurse into sub-selects
+            if (from instanceof SubSelect sub) {
+                processSelectBody(sub.getSelectBody(), columns, new HashMap<>());
+            }
+            if (plainSelect.getJoins() != null) {
+                for (Join join : plainSelect.getJoins()) {
+                    if (join.getOnExpression() != null)
+                        join.getOnExpression().accept(new ColumnCollector(columns, aliasMap));
+                    if (join.getRightItem() instanceof SubSelect subJoin) {
+                        processSelectBody(subJoin.getSelectBody(), columns, new HashMap<>());
+                    }
+                }
+            }
+        }
+
+        if (selectBody instanceof SetOperationList setList) {
+            for (SelectBody body : setList.getSelects()) {
+                processSelectBody(body, columns, new HashMap<>());
+            }
+        }
+
+        if (selectBody instanceof WithItem withItem) {
+            processSelectBody(withItem.getSelectBody(), columns, new HashMap<>());
+        }
+    }
+
+    private static void processInsert(Insert insert, Set<String> columns, Map<String, String> aliasMap) {
+        // Process INTO table
+        Table table = insert.getTable();
+        String tableName = table.getName();
+        columns.add(tableName + ":*"); // All columns of the table for insertion
+
+        // Process columns in INSERT statement
+        if (insert.getColumns() != null) {
+            for (Column col : insert.getColumns()) {
+                columns.add(tableName + ":" + col.getColumnName());
+            }
+        }
+
+        // Process values (if any subquery is present)
+        if (insert.getItemsList() instanceof ExpressionList exprList) {
+            for (Expression expr : exprList.getExpressions()) {
+                expr.accept(new ColumnCollector(columns, aliasMap));
+            }
+        } else if (insert.getItemsList() instanceof Select subSelect) {
+            processSelectBody(subSelect.getSelectBody(), columns, aliasMap);
+        }
+    }
+
+    private static void processUpdate(Update update, Set<String> columns, Map<String, String> aliasMap) {
+        // Process table
+        Table table = update.getTable();
+        String tableName = table.getName();
+        columns.add(tableName + ":*");
+
+        // Process SET clause
+        List<Column> setColumns = update.getColumns();
+        for (Column col : setColumns) {
+            columns.add(tableName + ":" + col.getColumnName());
+        }
+
+        // Process WHERE clause
+        if (update.getWhere() != null) {
+            update.getWhere().accept(new ColumnCollector(columns, aliasMap));
+        }
+    }
+
+    private static void processDelete(Delete delete, Set<String> columns, Map<String, String> aliasMap) {
+        // Process table in FROM
+        Table table = delete.getTable();
+        String tableName = table.getName();
+        columns.add(tableName + ":*");
+
+        // Process WHERE clause
+        if (delete.getWhere() != null) {
+            delete.getWhere().accept(new ColumnCollector(columns, aliasMap));
+        }
+    }
+
+    private static void trackAlias(FromItem fromItem, Map<String, String> aliasMap) {
+        if (fromItem instanceof Table table) {
+            String alias = table.getAlias() != null ? table.getAlias().getName() : table.getName();
+            aliasMap.put(alias, table.getName());
+        } else if (fromItem instanceof SubSelect sub) {
+            if (sub.getAlias() != null) {
+                aliasMap.put(sub.getAlias().getName(), sub.getAlias().getName()); // placeholder
+            }
+        }
+    }
+
+    private static class ColumnCollector extends ExpressionVisitorAdapter {
+        private final Set<String> columns;
+        private final Map<String, String> aliasToTable;
+
+        ColumnCollector(Set<String> columns, Map<String, String> aliasToTable) {
+            this.columns = columns;
+            this.aliasToTable = aliasToTable;
+        }
+
+        @Override
+        public void visit(Column column) {
+            String tableAlias = column.getTable() != null ? column.getTable().getName() : null;
+            String tableName;
+
+            // If alias is null or missing, treat as table name
+            if (tableAlias == null) {
+                tableName = "unknown";
+            } else {
+                tableName = aliasToTable.getOrDefault(tableAlias, tableAlias);
+            }
+
+            String result = tableName + ":" + column.getColumnName();
+
+            // Add to set only if not already present (ensures uniqueness)
+            if (!columns.contains(result)) {
+                columns.add(result);
+            }
+        }
+
+        @Override
+        public void visit(SubSelect subSelect) {
+            processSelectBody(subSelect.getSelectBody(), columns, new HashMap<>());
+        }
+
+        @Override
+        protected void visitBinaryExpression(BinaryExpression binaryExpression) {
+            binaryExpression.getLeftExpression().accept(this);
+            binaryExpression.getRightExpression().accept(this);
+        }
+
+        @Override
+        public void visit(Function function) {
+            // If there are parameters (e.g., inside CONCAT or COALESCE)
+            if (function.getParameters() != null) {
+                for (Expression e : function.getParameters().getExpressions()) {
+                    e.accept(this);
+                }
+            }
+        }
+
+        @Override
+        public void visit(CastExpression cast) {
+            cast.getExpression().accept(this);
+        }
+
+        @Override
+        public void visit(Parenthesis parenthesis) {
+            parenthesis.getExpression().accept(this);
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        String sql = """
+            INSERT INTO orders (user_id, amount) 
+            SELECT u.id, o.amount FROM users u JOIN orders o ON u.id = o.user_id
+        """;
+
+        Set<String> result = extractColumnTablePairs(sql);
+        result.forEach(System.out::println);
+    }
+}
