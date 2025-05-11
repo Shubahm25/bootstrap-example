@@ -1,75 +1,138 @@
 package com.yourorg;
 
-import lombok.EqualsAndHashCode;
-import lombok.Value;
-import org.openrewrite.*;
-import org.openrewrite.internal.lang.Nullable;
-import org.openrewrite.maven.MavenVisitor;
-import org.openrewrite.maven.UpgradeDependencyVersion;
-import org.openrewrite.xml.tree.Xml;
+import org.junit.jupiter.api.Test;
+import org.openrewrite.test.RewriteTest;
+import org.openrewrite.test.SourceSpecs;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import static org.openrewrite.maven.Assertions.pomXml;
 
-@Value
-@EqualsAndHashCode(callSuper = true)
-public class UpgradeDependencyVersionOptionalArtifact extends Recipe {
-    @Option(displayName = "Group ID",
-            description = "The group ID of the dependency to upgrade.",
-            example = "com.fasterxml.jackson.core")
-    String groupId;
+class UpgradeDependencyVersionOptionalArtifactTest implements RewriteTest {
 
-    @Option(displayName = "Artifact ID",
-            description = "The artifact ID of the dependency to upgrade. If not provided, all artifacts for the group ID are updated.",
-            example = "jackson-core",
-            required = false)
-    @Nullable
-    String artifactId;
-
-    @Option(displayName = "New version",
-            description = "The new version to upgrade to, supports Node Semver selectors.",
-            example = "2.15.X")
-    String newVersion;
-
-    @Override
-    public String getDisplayName() {
-        return "Upgrade Maven dependency version (optional artifactId)";
+    @Test
+    void testWithoutArtifactIdDirectAndTransitive() {
+        rewriteRun(
+            pomXml(
+                """
+                <project>
+                    <modelVersion>4.0.0</modelVersion>
+                    <groupId>com.example</groupId>
+                    <artifactId>sample</artifactId>
+                    <version>1.0.0</version>
+                    <dependencyManagement>
+                        <dependencies>
+                            <dependency>
+                                <groupId>com.fasterxml.jackson.core</groupId>
+                                <artifactId>jackson-core</artifactId>
+                                <version>2.12.5</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>com.fasterxml.jackson.core</groupId>
+                                <artifactId>jackson-databind</artifactId>
+                                <version>2.12.5</version>
+                            </dependency>
+                        </dependencies>
+                    </dependencyManagement>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-core</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-databind</artifactId>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """,
+                """
+                <project>
+                    <modelVersion>4.0.0</modelVersion>
+                    <groupId>com.example</groupId>
+                    <artifactId>sample</artifactId>
+                    <version>1.0.0</version>
+                    <dependencyManagement>
+                        <dependencies>
+                            <dependency>
+                                <groupId>com.fasterxml.jackson.core</groupId>
+                                <artifactId>jackson-core</artifactId>
+                                <version>2.15.4</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>com.fasterxml.jackson.core</groupId>
+                                <artifactId>jackson-databind</artifactId>
+                                <version>2.15.4</version>
+                            </dependency>
+                        </dependencies>
+                    </dependencyManagement>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-core</artifactId>
+                            <version>2.15.4</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-databind</artifactId>
+                            <version>2.15.4</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """,
+                spec -> spec.recipe(new UpgradeDependencyVersionOptionalArtifact(
+                    "com.fasterxml.jackson.core", null, "2.15.4", null, "both"
+                ))
+            )
+        );
     }
 
-    @Override
-    public String getDescription() {
-        return "Upgrades the version of a Maven dependency by groupId and optionally artifactId.";
-    }
-
-    @Override
-    public TreeVisitor<?, ExecutionContext> getVisitor() {
-        return new MavenVisitor<ExecutionContext>() {
-            @Override
-            public Xml visitDocument(Xml.Document document, ExecutionContext ctx) {
-                if (artifactId != null) {
-                    Recipe upgradeRecipe = new UpgradeDependencyVersion(groupId, artifactId, newVersion, null, null);
-                    return (Xml) upgradeRecipe.getVisitor().visit(document, ctx);
-                }
-
-                List<Xml.Tag> dependencies = findDependencies(document, groupId);
-                Xml result = document;
-                for (Xml.Tag dep : dependencies) {
-                    String depArtifactId = dep.getChildValue("artifactId").orElse(null);
-                    if (depArtifactId != null) {
-                        Recipe upgradeRecipe = new UpgradeDependencyVersion(groupId, depArtifactId, newVersion, null, null);
-                        result = (Xml) upgradeRecipe.getVisitor().visit(result, ctx);
-                    }
-                }
-                return result;
-            }
-
-            private List<Xml.Tag> findDependencies(Xml.Document document, String groupId) {
-                return document.getRoot()
-                        .getChildren("dependencies").stream()
-                        .flatMap(deps -> deps.getChildren("dependency").stream())
-                        .filter(dep -> groupId.equals(dep.getChildValue("groupId").orElse(null)))
-                        .collect(Collectors.toList());
-            }
-        };
+    @Test
+    void testWithArtifactIdDirectOnly() {
+        rewriteRun(
+            pomXml(
+                """
+                <project>
+                    <modelVersion>4.0.0</modelVersion>
+                    <groupId>com.example</groupId>
+                    <artifactId>sample</artifactId>
+                    <version>1.0.0</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-core</artifactId>
+                            <version>2.12.5</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-databind</artifactId>
+                            <version>2.12.5</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """,
+                """
+                <project>
+                    <modelVersion>4.0.0</modelVersion>
+                    <groupId>com.example</groupId>
+                    <artifactId>sample</artifactId>
+                    <version>1.0.0</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-core</artifactId>
+                            <version>2.15.4</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-databind</artifactId>
+                            <version>2.12.5</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """,
+                spec -> spec.recipe(new UpgradeDependencyVersionOptionalArtifact(
+                    "com.fasterxml.jackson.core", "jackson-core", "2.15.4", null, "direct"
+                ))
+            )
+        );
     }
 }
