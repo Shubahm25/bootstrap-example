@@ -1,0 +1,120 @@
+package org.example;
+
+import org.openrewrite.ExecutionContext;
+import org.openrewrite.Recipe;
+import org.openrewrite.TreeVisitor;
+import org.openrewrite.maven.MavenVisitor;
+import org.openrewrite.xml.tree.Xml;
+import org.openrewrite.xml.AddToTagVisitor;
+import org.openrewrite.xml.ChangeTagValueVisitor;
+import org.openrewrite.xml.tree.Content;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+public class ReplaceHardcodedVersionsWithProperties extends Recipe {
+
+    @Override
+    public String getDisplayName() {
+        return "Replace hardcoded dependency versions with properties";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Replaces hardcoded dependency versions in Maven POM files with references to properties in the <properties> tag.";
+    }
+
+    @Override
+    public TreeVisitor<?, ExecutionContext> getVisitor() {
+        return new MavenVisitor<ExecutionContext>() {
+            private final Map<String, String> dependencyToProperty = new HashMap<>();
+
+            @Override
+            public Xml visitDocument(Xml.Document document, ExecutionContext ctx) {
+                // Step 1: Collect hardcoded versions and map to property names
+                document.getRoot().getTags().stream()
+                        .filter(tag -> tag.getName().equals("dependencies"))
+                        .flatMap(deps -> deps.getContent().stream())
+                        .filter(Content::isTag)
+                        .map(Content::asTag)
+                        .filter(dep -> dep.getName().equals("dependency"))
+                        .forEach(dep -> {
+                            Optional<Xml.Tag> versionTag = dep.getChild("version");
+                            if (versionTag.isPresent()) {
+                                String version = versionTag.get().getValue().orElse("");
+                                if (!version.startsWith("${")) { // Check if version is hardcoded
+                                    String groupId = dep.getChildValue("groupId").orElse("unknown");
+                                    String artifactId = dep.getChildValue("artifactId").orElse("unknown");
+                                    String propertyName = artifactId + ".version";
+                                    dependencyToProperty.put(groupId + ":" + artifactId, propertyName);
+                                }
+                            }
+                        });
+
+                // Step 2: Add properties to <properties> tag
+                Xml.Tag propertiesTag = document.getRoot().getChild("properties").orElse(null);
+                if (!dependencyToProperty.isEmpty()) {
+                    if (propertiesTag == null) {
+                        // Create <properties> tag if it doesn't exist
+                        Xml.Tag newPropertiesTag = Xml.Tag.build("<properties>\n</properties>");
+                        document = (Xml.Document) new AddToTagVisitor(document.getRoot(), newPropertiesTag).visit(document, ctx);
+                        propertiesTag = document.getRoot().getChild("properties").orElseThrow();
+                    }
+
+                    // Add each property
+                    for (Map.Entry<String, String> entry : dependencyToProperty.entrySet()) {
+                        String[] groupArtifact = entry.getKey().split(":");
+                        String version = getVersionFromDependency(document, groupArtifact[0], groupArtifact[1]);
+                        if (version != null && !version.startsWith("${")) {
+                            String propertyName = entry.getValue();
+                            Xml.Tag propertyTag = Xml.Tag.build(String.format("<%s>%s</%s>", propertyName, version, propertyName));
+                            document = (Xml.Document) new AddToTagVisitor(propertiesTag, propertyTag).visit(document, ctx);
+                        }
+                    }
+                }
+
+                // Step 3: Replace hardcoded versions with property references
+                for (Map.Entry<String, String> entry : dependencyToProperty.entrySet()) {
+                    String[] groupArtifact = entry.getKey().split(":");
+                    String propertyName = entry.getValue();
+                    document.getRoot().getTags().stream()
+                            .filter(tag -> tag.getName().equals("dependencies"))
+                            .flatMap(deps -> deps.getContent().stream())
+                            .filter(Content::isTag)
+                            .map(Content::asTag)
+                            .filter(dep -> dep.getName().equals("dependency"))
+                            .filter(dep -> groupArtifact[0].equals(dep.getChildValue("groupId").orElse(""))
+                                    && groupArtifact[1].equals(dep.getChildValue("artifactId").orElse("")))
+                            .flatMap(dep -> dep.getContent().stream())
+                            .filter(Content::isTag)
+                            .map(Content::asTag)
+                            .filter(tag -> tag.getName().equals("version"))
+                            .forEach(versionTag -> {
+                                document = (Xml.Document) new ChangeTagValueVisitor(versionTag, "${" + propertyName + "}").visit(document, ctx);
+                            });
+                }
+
+                return super.visitDocument(document, ctx);
+            }
+
+            private String getVersionFromDependency(Xml.Document document, String groupId, String artifactId) {
+                return document.getRoot().getTags().stream()
+                        .filter(tag -> tag.getName().equals("dependencies"))
+                        .flatMap(deps -> deps.getContent().stream())
+                        .filter(Content::isTag)
+                        .map(Content::asTag)
+                        .filter(dep -> dep.getName().equals("dependency"))
+                        .filter(dep -> groupId.equals(dep.getChildValue("groupId").orElse(""))
+                                && artifactId.equals(dep.getChildValue("artifactId").orElse("")))
+                        .flatMap(dep -> dep.getContent().stream())
+                        .filter(Content::isTag)
+                        .map(Content::asTag)
+                        .filter(tag -> tag.getName().equals("version"))
+                        .findFirst()
+                        .flatMap(tag -> tag.getValue())
+                        .orElse(null);
+            }
+        };
+    }
+}
