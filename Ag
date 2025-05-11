@@ -1,0 +1,78 @@
+package com.yourorg.openrewrite.custom;
+
+import org.openrewrite.ExecutionContext;
+import org.openrewrite.Recipe;
+import org.openrewrite.xml.XmlIsoVisitor;
+import org.openrewrite.xml.tree.Xml;
+import org.openrewrite.xml.tree.Xml.Tag;
+
+import java.util.List;
+import java.util.Optional;
+
+public class CustomUpgradeDependencyVersion extends Recipe {
+
+    private final String groupId;
+    private final String artifactId; // Optional
+    private final String newVersion;
+
+    public CustomUpgradeDependencyVersion(String groupId, String artifactId, String newVersion) {
+        this.groupId = groupId;
+        this.artifactId = (artifactId == null || artifactId.isEmpty()) ? "*" : artifactId;
+        this.newVersion = newVersion;
+    }
+
+    @Override
+    public String getDisplayName() {
+        return "Custom Upgrade Dependency Version";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Upgrades dependencies matching the given groupId and (optional) artifactId to a specific version.";
+    }
+
+    @Override
+    protected XmlIsoVisitor<ExecutionContext> getVisitor() {
+        return new XmlIsoVisitor<>() {
+
+            @Override
+            public Tag visitTag(Tag tag, ExecutionContext ctx) {
+                tag = super.visitTag(tag, ctx);
+
+                if (!"dependency".equals(tag.getName())) {
+                    return tag;
+                }
+
+                Optional<String> g = tag.getChildValue("groupId");
+                Optional<String> a = tag.getChildValue("artifactId");
+
+                if (g.isEmpty() || !g.get().equals(groupId)) {
+                    return tag;
+                }
+
+                if (!artifactId.equals("*") && (!a.isPresent() || !a.get().equals(artifactId))) {
+                    return tag;
+                }
+
+                // Update version if present
+                Optional<Tag> versionTag = tag.getChild("version");
+                if (versionTag.isPresent()) {
+                    Tag updatedVersion = versionTag.get().withValue(newVersion);
+                    return tag.withContent(
+                            tag.getContent().stream()
+                                    .map(c -> c instanceof Tag && "version".equals(((Tag) c).getName())
+                                            ? updatedVersion
+                                            : c
+                                    ).toList()
+                    );
+                }
+
+                // If version tag not present, add it
+                Tag newVersionTag = Tag.build("version", newVersion);
+                List<Xml> newContent = new java.util.ArrayList<>(tag.getContent());
+                newContent.add(newVersionTag);
+                return tag.withContent(newContent);
+            }
+        };
+    }
+}
