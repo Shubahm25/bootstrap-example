@@ -1,0 +1,95 @@
+import org.openrewrite.ExecutionContext;
+import org.openrewrite.Recipe;
+import org.openrewrite.TreeVisitor;
+import org.openrewrite.xml.XmlIsoVisitor;
+import org.openrewrite.xml.tree.Xml;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class RemoveUnusedMavenProperties extends Recipe {
+
+    @Override
+    public String getDisplayName() {
+        return "Remove unused Maven properties";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Removes properties from <properties> block that are not referenced elsewhere.";
+    }
+
+    @Override
+    public TreeVisitor<?, ExecutionContext> getVisitor() {
+        return new XmlIsoVisitor<ExecutionContext>() {
+
+            private final Set<String> definedProps = new HashSet<>();
+            private final Set<String> usedProps = new HashSet<>();
+
+            @Override
+            public Xml.Document visitDocument(Xml.Document document, ExecutionContext ctx) {
+                // 1. Collect all property definitions
+                document.getRoot().getChildren().forEach(rootChild -> {
+                    if (rootChild instanceof Xml.Tag) {
+                        Xml.Tag tag = (Xml.Tag) rootChild;
+                        Optional<Xml.Tag> propsTag = tag.getChild("properties");
+                        propsTag.ifPresent(pt -> pt.getChildren().forEach(prop -> {
+                            if (prop instanceof Xml.Tag) {
+                                definedProps.add(((Xml.Tag) prop).getName());
+                            }
+                        }));
+                    }
+                });
+
+                // 2. Collect all usages like ${property.name}
+                new XmlIsoVisitor<ExecutionContext>() {
+                    @Override
+                    public Xml.Tag visitTag(Xml.Tag tag, ExecutionContext ctx) {
+                        tag.getValue().ifPresent(val -> {
+                            usedProps.addAll(extractReferencedProperties(val));
+                        });
+                        return super.visitTag(tag, ctx);
+                    }
+                }.visit(document, ctx);
+
+                return super.visitDocument(document, ctx);
+            }
+
+            @Override
+            public Xml.Tag visitTag(Xml.Tag tag, ExecutionContext ctx) {
+                // 3. Remove unused properties
+                if ("properties".equals(tag.getName())) {
+                    List<Xml.Tag> remaining = tag.getChildren().stream()
+                        .filter(child -> {
+                            if (child instanceof Xml.Tag) {
+                                String propName = ((Xml.Tag) child).getName();
+                                return usedProps.contains(propName);
+                            }
+                            return true;
+                        })
+                        .map(Xml.Tag.class::cast)
+                        .collect(Collectors.toList());
+
+                    return tag.withContent(remaining);
+                }
+                return super.visitTag(tag, ctx);
+            }
+
+            private Set<String> extractReferencedProperties(String value) {
+                Set<String> props = new HashSet<>();
+                int idx = value.indexOf("${");
+                while (idx != -1) {
+                    int end = value.indexOf("}", idx);
+                    if (end != -1) {
+                        String prop = value.substring(idx + 2, end);
+                        props.add(prop);
+                        idx = value.indexOf("${", end);
+                    } else {
+                        break;
+                    }
+                }
+                return props;
+            }
+        };
+    }
+}
