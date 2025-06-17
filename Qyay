@@ -1,86 +1,17 @@
-package com.yourorg.openrewrite.custom;
+String cleanSQLBlock(String rawSql) {
+    // Remove PLI-style variable markers like :VARNAME
+    rawSql = rawSql.replaceAll(":[a-zA-Z_][a-zA-Z0-9_]*", "?");
 
-import org.openrewrite.ExecutionContext;
-import org.openrewrite.Recipe;
-import org.openrewrite.xml.XmlIsoVisitor;
-import org.openrewrite.xml.tree.Xml;
-import org.openrewrite.xml.tree.Xml.Tag;
-import org.openrewrite.xml.tree.Xml.Content;
+    // Remove any extra special characters not typical in SQL
+    rawSql = rawSql.replaceAll("[^\\x20-\\x7E]", ""); // remove non-ASCII
+    rawSql = rawSql.replaceAll("--.*?$", ""); // remove inline comments
+    rawSql = rawSql.replaceAll("/\\*.*?\\*/", ""); // remove block comments
+    rawSql = rawSql.replaceAll("\\s+", " "); // normalize whitespace
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
-public class CustomUpgradeDependencyVersion extends Recipe {
-
-    private final String groupId;
-    private final String artifactId; // Optional
-    private final String newVersion;
-
-    public CustomUpgradeDependencyVersion(String groupId, String artifactId, String newVersion) {
-        this.groupId = groupId;
-        this.artifactId = (artifactId == null || artifactId.isEmpty()) ? "*" : artifactId;
-        this.newVersion = newVersion;
+    // Optionally fix missing semicolons
+    if (!rawSql.trim().endsWith(";")) {
+        rawSql = rawSql.trim() + ";";
     }
 
-    @Override
-    public String getDisplayName() {
-        return "Custom Upgrade Dependency Version";
-    }
-
-    @Override
-    public String getDescription() {
-        return "Upgrades dependencies matching the given groupId and (optional) artifactId to a specific version.";
-    }
-
-    @Override
-    protected XmlIsoVisitor<ExecutionContext> getVisitor() {
-        return new XmlIsoVisitor<ExecutionContext>() {
-
-            @Override
-            public Tag visitTag(Tag tag, ExecutionContext ctx) {
-                Tag t = super.visitTag(tag, ctx);
-
-                if (!"dependency".equals(t.getName())) {
-                    return t;
-                }
-
-                Optional<String> g = t.getChildValue("groupId");
-                Optional<String> a = t.getChildValue("artifactId");
-
-                if (g.isEmpty() || !g.get().equals(groupId)) {
-                    return t;
-                }
-
-                if (!artifactId.equals("*") && (!a.isPresent() || !a.get().equals(artifactId))) {
-                    return t;
-                }
-
-                Optional<Tag> versionTag = t.getChild("version");
-
-                if (versionTag.isPresent()) {
-                    return t.withContent(updateVersion(t.getContent(), newVersion));
-                } else {
-                    // Add version tag if it doesn't exist
-                    Tag newVersionTag = Tag.build("version", newVersion);
-                    List<Content> newContent = new ArrayList<>(t.getContent());
-                    newContent.add(newVersionTag);
-                    return t.withContent(newContent);
-                }
-            }
-
-            private List<Content> updateVersion(List<Content> content, String newVersion) {
-                List<Content> updated = new ArrayList<>(content);
-                for (int i = 0; i < updated.size(); i++) {
-                    if (updated.get(i) instanceof Tag) {
-                        Tag tag = (Tag) updated.get(i);
-                        if ("version".equals(tag.getName())) {
-                            updated.set(i, tag.withValue(newVersion));
-                        }
-                    }
-                }
-                return updated;
-            }
-        };
-    }
+    return rawSql.trim();
 }
