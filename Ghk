@@ -1,92 +1,110 @@
 import org.apache.poi.xwpf.usermodel.*;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBookmark;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 
-public class DotxBookmarkUpdater {
+public class SafeBookmarkUpdaterIfElse {
 
     public static void main(String[] args) throws Exception {
-        // Input and output file paths
-        String inputPath = "template.dotx";              // Path to your template
-        String outputPath = "updated_template.dotx";     // Output path
+        String inputPath = "template.dotx";             // Your template file
+        String outputPath = "updated_template.dotx";    // Output result
 
-        // Define bookmark replacements
-        Map<String, String> bookmarkValues = new HashMap<>();
-        bookmarkValues.put("NameField", "Shubham Gupta");
-        bookmarkValues.put("AddressField", "Bangalore");
-        bookmarkValues.put("DateField", "2025-07-02");
+        // Define the bookmark values
+        Map<String, String> bookmarkValues = Map.of(
+                "NameField", "Shubham Gupta",
+                "AddressField", "Bangalore",
+                "DateField", "2025-07-02"
+        );
 
-        // Load the document
         try (FileInputStream fis = new FileInputStream(inputPath);
              XWPFDocument doc = new XWPFDocument(fis)) {
 
-            List<XWPFParagraph> paragraphs = doc.getParagraphs();
+            // Iterate over all body elements
+            for (IBodyElement element : doc.getBodyElements()) {
 
-            // Process paragraphs for bookmarks
-            for (XWPFParagraph para : paragraphs) {
-                List<CTBookmark> bookmarks = para.getCTP().getBookmarkStartList();
-                for (CTBookmark bookmark : bookmarks) {
-                    String bookmarkName = bookmark.getName();
-                    int bookmarkId = bookmark.getId().intValue();
+                if (element instanceof XWPFParagraph paragraph) {
+                    updateBookmarksInParagraph(paragraph, bookmarkValues);
 
-                    if (bookmarkValues.containsKey(bookmarkName)) {
-                        String newValue = bookmarkValues.get(bookmarkName);
-                        updateBookmarkText(doc, para, bookmarkId, newValue);
+                } else if (element instanceof XWPFTable table) {
+                    for (XWPFTableRow row : table.getRows()) {
+                        for (XWPFTableCell cell : row.getTableCells()) {
+                            for (XWPFParagraph para : cell.getParagraphs()) {
+                                updateBookmarksInParagraph(para, bookmarkValues);
+                            }
+                        }
                     }
+
+                } else if (element instanceof XWPFSDT sdt) {
+                    String title = sdt.getTitle();
+                    if (bookmarkValues.containsKey(title)) {
+                        sdt.getContent().clear();
+                        sdt.getContent().setText(bookmarkValues.get(title));
+                    }
+
+                } else {
+                    // Unsupported or unknown element type
+                    System.out.println("⚠️ Unknown element type: " + element.getClass());
                 }
             }
 
-            // Save the updated document
             try (FileOutputStream fos = new FileOutputStream(outputPath)) {
                 doc.write(fos);
             }
 
-            System.out.println("✅ Bookmarks updated successfully. Output: " + outputPath);
+            System.out.println("✅ All matching bookmarks updated → " + outputPath);
         }
     }
 
-    /**
-     * Updates the text inside a given bookmark ID.
-     * Works even if the bookmark is empty.
-     */
-    private static void updateBookmarkText(XWPFDocument doc, XWPFParagraph para, int bookmarkId, String newText) {
-        boolean insideBookmark = false;
-        boolean updated = false;
+    // Update bookmark values in a single paragraph
+    private static void updateBookmarksInParagraph(XWPFParagraph para, Map<String, String> values) {
+        List<CTBookmark> bookmarks = para.getCTP().getBookmarkStartList();
+
+        for (CTBookmark bookmark : bookmarks) {
+            String name = bookmark.getName();
+            int id = bookmark.getId().intValue();
+
+            if (values.containsKey(name)) {
+                replaceTextInsideBookmark(para, id, values.get(name));
+            }
+        }
+    }
+
+    // Replace or insert text strictly inside bookmark range
+    private static void replaceTextInsideBookmark(XWPFParagraph para, int bookmarkId, String newText) {
+        boolean inBookmark = false;
+        boolean replaced = false;
 
         List<XWPFRun> runs = para.getRuns();
+
         for (int i = 0; i < runs.size(); i++) {
             XWPFRun run = runs.get(i);
 
-            // Detect bookmark start
-            if (run.getCTR().getBookmarkStartList().stream().anyMatch(b -> b.getId().intValue() == bookmarkId)) {
-                insideBookmark = true;
+            // Start of bookmark
+            if (para.getCTP().getBookmarkStartList().stream().anyMatch(b -> b.getId().intValue() == bookmarkId)) {
+                inBookmark = true;
                 continue;
             }
 
-            // Detect bookmark end
-            if (insideBookmark && run.getCTR().getBookmarkEndList().stream().anyMatch(b -> b.getId().intValue() == bookmarkId)) {
-                if (!updated) {
-                    // Insert new run just before bookmark end
-                    XWPFRun insertRun = para.insertNewRun(i);
-                    insertRun.setText(newText);
-                    updated = true;
+            // End of bookmark
+            if (inBookmark && para.getCTP().getBookmarkEndList().stream().anyMatch(e -> e.getId().intValue() == bookmarkId)) {
+                if (!replaced) {
+                    XWPFRun newRun = para.insertNewRun(i);
+                    newRun.setText(newText);
+                    replaced = true;
                 }
                 break;
             }
 
-            // Replace existing text inside bookmark
-            if (insideBookmark && run.text() != null && !run.text().isBlank()) {
+            // Replace existing run text inside bookmark
+            if (inBookmark && !replaced && run.text() != null && !run.text().isBlank()) {
                 run.setText(newText, 0);
-                updated = true;
+                replaced = true;
             }
         }
 
-        // If no runs were found, create a new run at the end
-        if (insideBookmark && !updated) {
+        // Add a fallback run if nothing was replaced
+        if (inBookmark && !replaced) {
             XWPFRun newRun = para.createRun();
             newRun.setText(newText);
         }
