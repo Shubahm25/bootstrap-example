@@ -1,4 +1,27 @@
-import org.apache.poi.xwpf.usermodel.*;
+if (bookmarkValues.containsKey(title)) {
+    try {
+        XWPFSDTContent content = sdt.getContent();
+        List<IRunElement> runs = new ArrayList<>(content.getIRuns());
+
+        for (IRunElement run : runs) {
+            if (run instanceof XWPFRun r) {
+                XWPFParagraph p = content.getParagraph(0);
+                if (p != null && p.getRuns().contains(r)) {
+                    p.removeRun(p.getRuns().indexOf(r));
+                }
+            }
+        }
+
+        XWPFParagraph para = content.getParagraph(0);
+        if (para != null) {
+            XWPFRun newRun = para.createRun();
+            newRun.setText(bookmarkValues.get(title));
+        }
+
+    } catch (Exception e) {
+        System.err.println("⚠️ Error updating SDT with title '" + title + "': " + e.getMessage());
+    }
+}import org.apache.poi.xwpf.usermodel.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 
 import java.io.*;
