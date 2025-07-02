@@ -1,46 +1,35 @@
-private static void updateBookmarksInParagraphRuns(XWPFParagraph para, Map<String, String> bookmarkValues) {
-    List<XWPFRun> runs = para.getRuns();
+private static void updateHiddenBookmarks(XWPFParagraph para, Map<String, String> bookmarkValues) {
+    CTP ctp = para.getCTP();
+    XmlObject[] children = ctp.selectPath("./*");
 
-    CTBookmark currentBookmark = null;
-    int bookmarkId = -1;
-    String bookmarkName = null;
-    boolean inside = false;
-    boolean replaced = false;
+    String currentBookmarkName = null;
+    int currentBookmarkId = -1;
+    boolean insideBookmark = false;
 
-    for (int i = 0; i < runs.size(); i++) {
-        XWPFRun run = runs.get(i);
-        CTR ctr = run.getCTR();
-
-        // Detect bookmark start inside this run
-        for (CTBookmark bookmark : ctr.getBookmarkStartList()) {
-            bookmarkId = bookmark.getId().intValue();
-            bookmarkName = bookmark.getName();
-            currentBookmark = bookmark;
-            inside = true;
-            replaced = false;
+    for (XmlObject obj : children) {
+        if (obj instanceof CTBookmark bookmark) {
+            currentBookmarkId = bookmark.getId().intValue();
+            currentBookmarkName = bookmark.getName();
+            insideBookmark = bookmarkValues.containsKey(currentBookmarkName);
+            continue;
         }
 
-        // Inside bookmark: try to replace only non-formfield text
-        if (inside && bookmarkName != null && bookmarkValues.containsKey(bookmarkName)) {
-            if (!isFormFieldRun(run) && !replaced) {
-                run.setText(bookmarkValues.get(bookmarkName), 0);
-                replaced = true;
+        if (obj instanceof CTMarkupRange bookmarkEnd) {
+            if (bookmarkEnd.getId().intValue() == currentBookmarkId) {
+                insideBookmark = false;
+                currentBookmarkName = null;
+                currentBookmarkId = -1;
             }
+            continue;
         }
 
-        // Detect bookmark end inside this run
-        for (CTMarkupRange end : ctr.getBookmarkEndList()) {
-            if (end.getId().intValue() == bookmarkId) {
-                if (!replaced && bookmarkName != null && bookmarkValues.containsKey(bookmarkName)) {
-                    // Insert new text run if not replaced yet
-                    XWPFRun newRun = para.insertNewRun(i);
-                    newRun.setText(bookmarkValues.get(bookmarkName));
-                }
-                inside = false;
-                currentBookmark = null;
-                bookmarkName = null;
-                bookmarkId = -1;
-                replaced = false;
+        if (insideBookmark && obj instanceof CTR run) {
+            if (run.sizeOfFldCharArray() > 0 || run.sizeOfInstrTextArray() > 0) {
+                continue; // skip form control structure
+            }
+
+            for (CTText t : run.getTList()) {
+                t.setStringValue(bookmarkValues.get(currentBookmarkName));
             }
         }
     }
