@@ -1,29 +1,47 @@
-import org.apache.poi.xwpf.usermodel.XWPFSDT;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
+private static void updateBookmarksInParagraphRuns(XWPFParagraph para, Map<String, String> bookmarkValues) {
+    List<XWPFRun> runs = para.getRuns();
 
-private static void updateSDTContent(XWPFSDT sdt, Map<String, String> values) {
-    String title = sdt.getTitle();
-    if (title != null && values.containsKey(title)) {
-        try {
-            String newValue = values.get(title);
+    CTBookmark currentBookmark = null;
+    int bookmarkId = -1;
+    String bookmarkName = null;
+    boolean inside = false;
+    boolean replaced = false;
 
-            // ✅ Correctly access the underlying inline SDT XML
-            CTSdtRun ctSdtRun = sdt.getCtSdtRun();
-            CTSdtContentRun content = ctSdtRun.getSdtContent();
+    for (int i = 0; i < runs.size(); i++) {
+        XWPFRun run = runs.get(i);
+        CTR ctr = run.getCTR();
 
-            // Remove all existing text
-            int runCount = content.sizeOfRArray();
-            for (int i = runCount - 1; i >= 0; i--) {
-                content.removeR(i);
+        // Detect bookmark start inside this run
+        for (CTBookmark bookmark : ctr.getBookmarkStartList()) {
+            bookmarkId = bookmark.getId().intValue();
+            bookmarkName = bookmark.getName();
+            currentBookmark = bookmark;
+            inside = true;
+            replaced = false;
+        }
+
+        // Inside bookmark: try to replace only non-formfield text
+        if (inside && bookmarkName != null && bookmarkValues.containsKey(bookmarkName)) {
+            if (!isFormFieldRun(run) && !replaced) {
+                run.setText(bookmarkValues.get(bookmarkName), 0);
+                replaced = true;
             }
+        }
 
-            // Add a new run with new text
-            CTR newCTR = content.addNewR();
-            CTText newText = newCTR.addNewT();
-            newText.setStringValue(newValue);
-
-        } catch (Exception e) {
-            System.err.println("❌ Failed to update SDT '" + title + "': " + e.getMessage());
+        // Detect bookmark end inside this run
+        for (CTMarkupRange end : ctr.getBookmarkEndList()) {
+            if (end.getId().intValue() == bookmarkId) {
+                if (!replaced && bookmarkName != null && bookmarkValues.containsKey(bookmarkName)) {
+                    // Insert new text run if not replaced yet
+                    XWPFRun newRun = para.insertNewRun(i);
+                    newRun.setText(bookmarkValues.get(bookmarkName));
+                }
+                inside = false;
+                currentBookmark = null;
+                bookmarkName = null;
+                bookmarkId = -1;
+                replaced = false;
+            }
         }
     }
 }
