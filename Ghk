@@ -1,36 +1,28 @@
-private static void updateHiddenBookmarks(XWPFParagraph para, Map<String, String> bookmarkValues) {
-    CTP ctp = para.getCTP();
-    XmlObject[] children = ctp.selectPath("./*");
+private static void replaceFormFieldText(XWPFParagraph para, String newText) {
+    boolean inFormField = false;
 
-    String currentBookmarkName = null;
-    int currentBookmarkId = -1;
-    boolean insideBookmark = false;
+    for (XWPFRun run : para.getRuns()) {
+        CTR ctr = run.getCTR();
 
-    for (XmlObject obj : children) {
-        if (obj instanceof CTBookmark bookmark) {
-            currentBookmarkId = bookmark.getId().intValue();
-            currentBookmarkName = bookmark.getName();
-            insideBookmark = bookmarkValues.containsKey(currentBookmarkName);
-            continue;
+        // Detect start of form field
+        if (ctr.sizeOfFldCharArray() > 0 && ctr.getFldCharArray(0).getFldCharType() == STFldCharType.BEGIN) {
+            inFormField = true;
         }
 
-        if (obj instanceof CTMarkupRange bookmarkEnd) {
-            if (bookmarkEnd.getId().intValue() == currentBookmarkId) {
-                insideBookmark = false;
-                currentBookmarkName = null;
-                currentBookmarkId = -1;
+        // Detect FORMTEXT instruction
+        if (inFormField && ctr.sizeOfInstrTextArray() > 0) {
+            String instr = ctr.getInstrTextArray(0).getStringValue();
+            if (instr.contains("FORMTEXT")) {
+                continue; // expected, proceed
             }
-            continue;
         }
 
-        if (insideBookmark && obj instanceof CTR run) {
-            if (run.sizeOfFldCharArray() > 0 || run.sizeOfInstrTextArray() > 0) {
-                continue; // skip form control structure
+        // Replace text (but not field structure)
+        if (inFormField && ctr.sizeOfTArray() > 0 && ctr.sizeOfInstrTextArray() == 0 && ctr.sizeOfFldCharArray() == 0) {
+            for (int i = 0; i < ctr.sizeOfTArray(); i++) {
+                ctr.getTArray(i).setStringValue(newText);
             }
-
-            for (CTText t : run.getTList()) {
-                t.setStringValue(bookmarkValues.get(currentBookmarkName));
-            }
+            inFormField = false; // done with field
         }
     }
 }
