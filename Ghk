@@ -1,3 +1,4 @@
+import org.apache.poi.xwpf.usermodel.XWPFSDT;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 
 private static void updateSDTContent(XWPFSDT sdt, Map<String, String> values) {
@@ -6,23 +7,20 @@ private static void updateSDTContent(XWPFSDT sdt, Map<String, String> values) {
         try {
             String newValue = values.get(title);
 
-            // Access the underlying XML of the SDT block
-            CTSdtBlock ctSdt = sdt.getCtSdt();
-            CTSdtContentBlock contentBlock = ctSdt.getSdtContent();
+            // ✅ Correctly access the underlying inline SDT XML
+            CTSdtRun ctSdtRun = sdt.getCtSdtRun();
+            CTSdtContentRun content = ctSdtRun.getSdtContent();
 
-            // Remove all paragraphs (clean existing SDT content)
-            int count = contentBlock.sizeOfPArray();
-            for (int i = count - 1; i >= 0; i--) {
-                contentBlock.removeP(i);
+            // Remove all existing text
+            int runCount = content.sizeOfRArray();
+            for (int i = runCount - 1; i >= 0; i--) {
+                content.removeR(i);
             }
 
-            // Create new paragraph with text
-            CTP newCTP = CTP.Factory.newInstance();
-            CTR newCTR = newCTP.addNewR();
+            // Add a new run with new text
+            CTR newCTR = content.addNewR();
             CTText newText = newCTR.addNewT();
             newText.setStringValue(newValue);
-
-            contentBlock.addNewP().set(newCTP);
 
         } catch (Exception e) {
             System.err.println("❌ Failed to update SDT '" + title + "': " + e.getMessage());
