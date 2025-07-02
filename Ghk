@@ -1,39 +1,15 @@
-if (bookmarkValues.containsKey(title)) {
-    try {
-        XWPFSDTContent content = sdt.getContent();
-        List<IRunElement> runs = new ArrayList<>(content.getIRuns());
-
-        for (IRunElement run : runs) {
-            if (run instanceof XWPFRun r) {
-                XWPFParagraph p = content.getParagraph(0);
-                if (p != null && p.getRuns().contains(r)) {
-                    p.removeRun(p.getRuns().indexOf(r));
-                }
-            }
-        }
-
-        XWPFParagraph para = content.getParagraph(0);
-        if (para != null) {
-            XWPFRun newRun = para.createRun();
-            newRun.setText(bookmarkValues.get(title));
-        }
-
-    } catch (Exception e) {
-        System.err.println("⚠️ Error updating SDT with title '" + title + "': " + e.getMessage());
-    }
-}import org.apache.poi.xwpf.usermodel.*;
+import org.apache.poi.xwpf.usermodel.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 
 import java.io.*;
 import java.util.*;
 
-public class SafeBookmarkUpdaterIfElse {
+public class BookmarkAndSDTUpdater {
 
     public static void main(String[] args) throws Exception {
-        String inputPath = "template.dotx";             // Your template file
-        String outputPath = "updated_template.dotx";    // Output result
+        String inputPath = "template.dotx";
+        String outputPath = "updated_template.dotx";
 
-        // Define the bookmark values
         Map<String, String> bookmarkValues = Map.of(
                 "NameField", "Shubham Gupta",
                 "AddressField", "Bangalore",
@@ -43,31 +19,19 @@ public class SafeBookmarkUpdaterIfElse {
         try (FileInputStream fis = new FileInputStream(inputPath);
              XWPFDocument doc = new XWPFDocument(fis)) {
 
-            // Iterate over all body elements
             for (IBodyElement element : doc.getBodyElements()) {
 
                 if (element instanceof XWPFParagraph paragraph) {
                     updateBookmarksInParagraph(paragraph, bookmarkValues);
 
                 } else if (element instanceof XWPFTable table) {
-                    for (XWPFTableRow row : table.getRows()) {
-                        for (XWPFTableCell cell : row.getTableCells()) {
-                            for (XWPFParagraph para : cell.getParagraphs()) {
-                                updateBookmarksInParagraph(para, bookmarkValues);
-                            }
-                        }
-                    }
+                    updateBookmarksInTable(table, bookmarkValues);
 
                 } else if (element instanceof XWPFSDT sdt) {
-                    String title = sdt.getTitle();
-                    if (bookmarkValues.containsKey(title)) {
-                        sdt.getContent().clear();
-                        sdt.getContent().setText(bookmarkValues.get(title));
-                    }
+                    updateSDTContent(sdt, bookmarkValues);
 
                 } else {
-                    // Unsupported or unknown element type
-                    System.out.println("⚠️ Unknown element type: " + element.getClass());
+                    System.out.println("⚠️ Unknown element type: " + element.getClass().getSimpleName());
                 }
             }
 
@@ -75,11 +39,12 @@ public class SafeBookmarkUpdaterIfElse {
                 doc.write(fos);
             }
 
-            System.out.println("✅ All matching bookmarks updated → " + outputPath);
+            System.out.println("✅ Bookmarks and content controls updated successfully → " + outputPath);
         }
     }
 
-    // Update bookmark values in a single paragraph
+    // ───────────────────────────────────────────
+    // Paragraph bookmark updater
     private static void updateBookmarksInParagraph(XWPFParagraph para, Map<String, String> values) {
         List<CTBookmark> bookmarks = para.getCTP().getBookmarkStartList();
 
@@ -93,7 +58,20 @@ public class SafeBookmarkUpdaterIfElse {
         }
     }
 
-    // Replace or insert text strictly inside bookmark range
+    // ───────────────────────────────────────────
+    // Table updater
+    private static void updateBookmarksInTable(XWPFTable table, Map<String, String> values) {
+        for (XWPFTableRow row : table.getRows()) {
+            for (XWPFTableCell cell : row.getTableCells()) {
+                for (XWPFParagraph para : cell.getParagraphs()) {
+                    updateBookmarksInParagraph(para, values);
+                }
+            }
+        }
+    }
+
+    // ───────────────────────────────────────────
+    // Replace text strictly inside a bookmark range
     private static void replaceTextInsideBookmark(XWPFParagraph para, int bookmarkId, String newText) {
         boolean inBookmark = false;
         boolean replaced = false;
@@ -103,13 +81,13 @@ public class SafeBookmarkUpdaterIfElse {
         for (int i = 0; i < runs.size(); i++) {
             XWPFRun run = runs.get(i);
 
-            // Start of bookmark
+            // Check for bookmark start
             if (para.getCTP().getBookmarkStartList().stream().anyMatch(b -> b.getId().intValue() == bookmarkId)) {
                 inBookmark = true;
                 continue;
             }
 
-            // End of bookmark
+            // Check for bookmark end
             if (inBookmark && para.getCTP().getBookmarkEndList().stream().anyMatch(e -> e.getId().intValue() == bookmarkId)) {
                 if (!replaced) {
                     XWPFRun newRun = para.insertNewRun(i);
@@ -119,17 +97,49 @@ public class SafeBookmarkUpdaterIfElse {
                 break;
             }
 
-            // Replace existing run text inside bookmark
+            // Replace existing text inside bookmark
             if (inBookmark && !replaced && run.text() != null && !run.text().isBlank()) {
                 run.setText(newText, 0);
                 replaced = true;
             }
         }
 
-        // Add a fallback run if nothing was replaced
+        // If bookmark is empty, add fallback
         if (inBookmark && !replaced) {
             XWPFRun newRun = para.createRun();
             newRun.setText(newText);
+        }
+    }
+
+    // ───────────────────────────────────────────
+    // Update content control (SDT) if title matches bookmark name
+    private static void updateSDTContent(XWPFSDT sdt, Map<String, String> values) {
+        String title = sdt.getTitle();
+        if (values.containsKey(title)) {
+            try {
+                XWPFSDTContent content = sdt.getContent();
+                List<IRunElement> runs = new ArrayList<>(content.getIRuns());
+
+                // Remove all runs (if they are XWPFRun)
+                for (IRunElement run : runs) {
+                    if (run instanceof XWPFRun r) {
+                        XWPFParagraph para = content.getParagraph(0);
+                        if (para != null && para.getRuns().contains(r)) {
+                            para.removeRun(para.getRuns().indexOf(r));
+                        }
+                    }
+                }
+
+                // Insert new run with replacement text
+                XWPFParagraph para = content.getParagraph(0);
+                if (para != null) {
+                    XWPFRun newRun = para.createRun();
+                    newRun.setText(values.get(title));
+                }
+
+            } catch (Exception e) {
+                System.err.println("❌ Failed to update SDT '" + title + "': " + e.getMessage());
+            }
         }
     }
 }
