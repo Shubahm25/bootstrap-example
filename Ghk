@@ -1,52 +1,34 @@
-private static void updateFormFieldBookmarksAcrossRowAndCell(XWPFTableRow row, Map<String, String> bookmarkValues) {
-    CTRow ctRow = row.getCtRow();
+private static void replaceFormTextValue(XWPFParagraph para, String newValue) {
+    boolean insideField = false;
+    boolean foundFormText = false;
 
-    Map<Integer, String> idToName = new HashMap<>();
+    for (XWPFRun run : para.getRuns()) {
+        CTR ctr = run.getCTR();
 
-    // STEP 1: Detect all bookmarkStart directly in <w:tr>
-    for (XmlObject obj : ctRow.getContentList()) {
-        if (obj instanceof CTBookmark bm) {
-            idToName.put(bm.getId().intValue(), bm.getName());
-        }
-    }
-
-    // STEP 2: For each cell, check if any bookmarkEnd matches
-    for (CTTc ctTc : ctRow.getTcList()) {
-        XWPFTableCell cell = new XWPFTableCell(ctTc, row.getTable().getBody());
-
-        for (XWPFParagraph para : cell.getParagraphs()) {
-            CTP ctp = para.getCTP();
-            List<CTMarkupRange> ends = ctp.getBookmarkEndList();
-
-            for (CTMarkupRange end : ends) {
-                int id = end.getId().intValue();
-                if (idToName.containsKey(id)) {
-                    String name = idToName.get(id);
-                    if (!bookmarkValues.containsKey(name)) continue;
-
-                    // STEP 3: Check if it's a form field (fldChar + instrText)
-                    boolean isFormField = false;
-                    for (XWPFRun run : para.getRuns()) {
-                        if (run.getCTR().sizeOfFldCharArray() > 0 || run.getCTR().sizeOfInstrTextArray() > 0) {
-                            isFormField = true;
-                            break;
-                        }
-                    }
-
-                    if (isFormField) {
-                        // STEP 4: Set new value in run (skip field chars)
-                        for (XWPFRun run : para.getRuns()) {
-                            CTR ctr = run.getCTR();
-
-                            if (ctr.sizeOfInstrTextArray() > 0 || ctr.sizeOfFldCharArray() > 0) continue;
-
-                            for (CTText text : ctr.getTList()) {
-                                text.setStringValue(bookmarkValues.get(name));
-                            }
-                        }
-                    }
-                }
+        // 1. Detect start and end of field
+        for (CTFldChar fldChar : ctr.getFldCharList()) {
+            if (fldChar.getFldCharType() == STFldCharType.BEGIN) {
+                insideField = true;
             }
+            if (fldChar.getFldCharType() == STFldCharType.END) {
+                insideField = false;
+                foundFormText = false; // reset
+            }
+        }
+
+        // 2. Detect FORMTEXT inside the field
+        for (CTText instr : ctr.getInstrTextList()) {
+            if (instr.getStringValue().contains("FORMTEXT")) {
+                foundFormText = true;
+            }
+        }
+
+        // 3. Replace only the editable value
+        if (insideField && foundFormText && ctr.sizeOfTArray() > 0) {
+            for (CTText text : ctr.getTList()) {
+                text.setStringValue(newValue);
+            }
+            break; // ✅ Stop after updating the first editable value
         }
     }
 }
