@@ -1,0 +1,22 @@
+{
+  "name": "copilot-bridge",
+  "displayName": "Copilot Bridge",
+  "description": "Bridge between desktop tools and GitHub Copilot Chat via WebSocket (with streaming)",
+  "version": "1.1.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": ["*"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "copilot-bridge.start",
+        "title": "Start Copilot Bridge"
+      }
+    ]
+  },
+  "dependencies": {
+    "ws": "^8.13.0"
+  }
+}
