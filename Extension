@@ -1,0 +1,64 @@
+const vscode = require("vscode");
+const WebSocket = require("ws");
+
+let wss;
+let connectedSockets = [];
+
+/**
+ * Send text to Copilot Chat.
+ * NOTE: This uses an internal command; GitHub might change it in the future.
+ */
+async function sendToCopilotChat(query) {
+    await vscode.commands.executeCommand("github.copilot.interactive.send", query);
+}
+
+function activate(context) {
+    let disposable = vscode.commands.registerCommand("copilot-bridge.start", function () {
+        if (wss) {
+            vscode.window.showInformationMessage("Copilot Bridge already running.");
+            return;
+        }
+
+        // Start WebSocket server
+        wss = new WebSocket.Server({ port: 6789 });
+        vscode.window.showInformationMessage("Copilot Bridge WebSocket started on ws://localhost:6789");
+
+        wss.on("connection", (ws) => {
+            connectedSockets.push(ws);
+            ws.on("message", async (message) => {
+                const query = message.toString().trim();
+                await sendToCopilotChat(query);
+            });
+            ws.on("close", () => {
+                connectedSockets = connectedSockets.filter(s => s !== ws);
+            });
+        });
+
+        // Watch Copilot Chat panel for changes
+        vscode.workspace.onDidChangeTextDocument((event) => {
+            if (event.document.languageId === "markdown" &&
+                event.document.uri.toString().includes("copilot-chat")) {
+
+                const content = event.document.getText();
+
+                // Stream live content to all connected sockets
+                connectedSockets.forEach(ws => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(content);
+                    }
+                });
+            }
+        });
+    });
+
+    context.subscriptions.push(disposable);
+}
+
+function deactivate() {
+    if (wss) {
+        wss.close();
+        wss = null;
+    }
+}
+
+module.exports = { activate, deactivate };
