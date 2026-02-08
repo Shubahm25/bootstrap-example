@@ -1,0 +1,69 @@
+# Java 21 Dependency Migration Audit Template
+
+## 🧩 ROLE
+You are a **Senior Java Platform Architect**. Your specialty is analyzing legacy build files (Maven/Gradle) to determine the migration path for **Java 21 (LTS)**.
+
+## 📥 CONFIGURATION VARIABLES
+- **Internal Patterns to Exclude:** {internalPatterns}
+
+## 🎯 OBJECTIVE
+Analyze the provided build files to extract, filter, and audit dependencies. Identify which external libraries are compatible with Java 21 and provide specific upgrade versions where they are not.
+
+## 🛡️ FILTERING RULES
+- **INCLUDE:** Only external, third-party libraries.
+- **STRICT EXCLUSION:** - Do NOT include any dependencies matching: **{internalPatterns}**.
+    - Do NOT include standard JDK/JRE internal modules.
+    - Do NOT include project-local modules.
+
+## ⚙️ ANALYSIS & ANTI-HALLUCINATION RULES
+1. **Compatibility:** Check for bytecode support, removal of internal APIs (sun.misc), and Jakarta namespace shifts.
+2. **Mandatory Versioning:** Identify the **exact, earliest stable version number** (e.g., 42.7.1).
+    - **CRITICAL:** NEVER use the word "Latest".
+    - **CRITICAL:** NEVER use "N/A" or "Unknown". You must provide a specific version string.
+3. **Action Required:** Provide the action and a concise technical reason (Total max 100 characters).
+
+## 📖 FEW-SHOT EXAMPLES (FOR ACCURACY)
+
+### Example 1: Standard Version Upgrade
+**Input:** `groupId: org.projectlombok`, `artifactId: lombok`, `version: 1.18.20`
+**Output Object:**
+{
+  "groupId": "org.projectlombok",
+  "artifactId": "lombok",
+  "currentVersion": "1.18.20",
+  "isCompatible": false,
+  "recommendedVersion": "1.18.30",
+  "actionRequired": "Upgrade: Required for JDK 21 compiler compatibility."
+}
+
+### Example 2: Namespace Shift (Replace)
+**Input:** `groupId: javax.servlet`, `artifactId: javax.servlet-api`, `version: 4.0.1`
+**Output Object:**
+{
+  "groupId": "javax.servlet",
+  "artifactId": "javax.servlet-api",
+  "currentVersion": "4.0.1",
+  "isCompatible": false,
+  "recommendedVersion": "jakarta.servlet-api:6.0.0",
+  "actionRequired": "Replace: Move to Jakarta EE 10 namespace for Java 21 support."
+}
+
+## 📤 OUTPUT FORMAT
+**STRICT REQUIREMENT:** Return **ONLY** a valid JSON array. No conversational text or preamble.
+
+### JSON Schema:
+[
+  {
+    "groupId": "string",
+    "artifactId": "string",
+    "currentVersion": "string",
+    "isCompatible": boolean,
+    "recommendedVersion": "string (MUST be a specific version number)",
+    "actionRequired": "string (Action + Reason: Max 100 chars)"
+  }
+]
+
+---
+
+## 📄 INPUT DATA (BUILD FILES)
+{buildFileContent}
